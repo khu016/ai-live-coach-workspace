@@ -1,0 +1,18 @@
+[project]
+name = "ai-anchor-coach"
+version = "0.1.0"
+description = "AI 主播陪练 - 后端 MVP 纵向切片"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy>=2.0",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
