@@ -7,8 +7,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .api import trainings
 from .core.errors import AppError
-from .db import SessionLocal, engine
+from .db import SessionLocal, engine, run_migrations
 from .models import Base, Training
+from .services.content_library import ContentLibraryError
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -30,6 +31,7 @@ def _recover_stale_tasks():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    run_migrations()
     _recover_stale_tasks()
     yield
 
@@ -42,6 +44,14 @@ async def app_error_handler(request: Request, exc: AppError):
     return JSONResponse(
         status_code=exc.status,
         content={"error": {"code": exc.code, "message": exc.message}},
+    )
+
+
+@app.exception_handler(ContentLibraryError)
+async def content_library_error_handler(request: Request, exc: ContentLibraryError):
+    return JSONResponse(
+        status_code=500,
+        content={"error": {"code": "CONTENT_LIBRARY_ERROR", "message": str(exc)}},
     )
 
 

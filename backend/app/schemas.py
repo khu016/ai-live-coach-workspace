@@ -17,6 +17,14 @@ class BulletIn(BaseModel):
     at_sec: Optional[float] = None
     kind: str = "dynamic"
     text: str = Field(min_length=1, max_length=500)
+    # 内容库场景回溯字段（可选；前端把脚本原样带回，旧客户端不传也能用）
+    scenario_id: Optional[str] = None
+    viewer_intent: Optional[str] = None
+    sample_type: Optional[str] = None
+    difficulty: Optional[int] = None
+    must_cover: Optional[List[str]] = None
+    failure_signals: Optional[List[str]] = None
+    source_refs: Optional[List[str]] = None
 
 
 class Issue(BaseModel):
@@ -27,6 +35,12 @@ class Issue(BaseModel):
     problem: str = ""
     suggestion: str = ""
     retrain_target: str = ""
+    # 内容依据回溯字段（可选，兼容旧模型输出）
+    trigger_bullet: Optional[str] = None
+    scenario_id: Optional[str] = None
+    rule_ids: List[str] = Field(default_factory=list)
+    missed_points: List[str] = Field(default_factory=list)
+    source_refs: List[str] = Field(default_factory=list)
 
 
 class FeedbackOut(BaseModel):

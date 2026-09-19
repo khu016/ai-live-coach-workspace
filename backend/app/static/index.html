@@ -162,7 +162,9 @@ function tick() {
     shownBullets.push(b);
     const div = document.createElement('div');
     div.className = 'bullet ' + (b.kind === 'fixed_question' ? 'fixed' : 'dynamic');
-    div.innerHTML = '<span class="t">'+sec+'s</span>' + escapeHtml(b.text);
+    div.innerHTML = '<span class="t">'+sec+'s</span>' +
+      (b.scenario_id ? '<span class="t hint">训练场景</span>' : '') +
+      escapeHtml(b.text);
     document.getElementById('bullets').appendChild(div);
     document.getElementById('bullets').scrollTop = 99999;
   });
@@ -178,7 +180,12 @@ function endPractice() {
     const fd = new FormData();
     fd.append('file', blob, 'recording.webm');
     fd.append('duration_sec', String(duration));
-    fd.append('bullets', JSON.stringify(shownBullets.map(b => ({at_sec:b.at_sec, kind:b.kind, text:b.text}))));
+    fd.append('bullets', JSON.stringify(shownBullets.map(b => ({
+      at_sec:b.at_sec, kind:b.kind, text:b.text,
+      scenario_id:b.scenario_id, viewer_intent:b.viewer_intent,
+      sample_type:b.sample_type, difficulty:b.difficulty,
+      must_cover:b.must_cover, failure_signals:b.failure_signals, source_refs:b.source_refs
+    }))));
     const r = await fetch('/api/v1/trainings/'+currentTraining.id+'/finish', { method:'POST', body: fd });
     if (!r.ok) { const e = await r.json(); alert(e.error.message); return; }
     const data = await r.json();

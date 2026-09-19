@@ -1,0 +1,77 @@
+[
+  {
+    "source_id": "SRC-BC4RII-001",
+    "name": "BC4RII",
+    "url": "https://github.com/zhuyiYZU/BC4RII",
+    "source_kind": "public_research_dataset",
+    "use_for": [
+      "带货弹幕意图分类",
+      "真实口吻研究"
+    ],
+    "rights_status": "unverified_research_only",
+    "notes": "仓库称包含来自抖音、快手、小红书和TikTok的143,957条人工标注弹幕；未核实到明确的数据商用许可。"
+  },
+  {
+    "source_id": "SRC-LIVECHAT-001",
+    "name": "LiveChat",
+    "url": "https://github.com/gaojingsheng/LiveChat",
+    "source_kind": "public_research_dataset",
+    "use_for": [
+      "弹幕与主播回复关系",
+      "多评论回应研究"
+    ],
+    "rights_status": "unverified_research_only",
+    "notes": "README描述样本包含观众评论与主播回复；代码许可不能自动视为数据许可。"
+  },
+  {
+    "source_id": "SRC-DY-SCHOOL-001",
+    "name": "抖音电商官方学习中心",
+    "url": "https://school.jinritemai.com/doudian/web/home",
+    "source_kind": "official_training_material",
+    "use_for": [
+      "带货直播基础",
+      "直播合规",
+      "商品讲解与复盘"
+    ],
+    "rights_status": "reference_and_summary_only",
+    "notes": "用于归纳规则和保留引用，不复制整段课程内容。"
+  },
+  {
+    "source_id": "SRC-DY-PROMPTER-001",
+    "name": "抖音电商主播提词卡说明",
+    "url": "https://school.jinritemai.com/doudian/wap/article/aHM4Kny97J1C?from=shop_message_study&from_school=1&should_full_screen=1&should_hide_bottom_nav=1",
+    "source_kind": "official_product_guidance",
+    "use_for": [
+      "根据评论补充讲解",
+      "直播中信息调整"
+    ],
+    "rights_status": "reference_and_summary_only",
+    "notes": "用于归纳回应相关性和信息补全规则。"
+  },
+  {
+    "source_id": "SRC-BILI-GUIDE-001",
+    "name": "B站UP主开播白皮书",
+    "url": "https://live.bilibili.com/blackboard/era/u4EPvXpDYUMv7hYJ.html",
+    "source_kind": "official_training_material",
+    "use_for": [
+      "弹幕互动",
+      "冷场处理",
+      "话题切换",
+      "节奏控制"
+    ],
+    "rights_status": "reference_and_summary_only",
+    "notes": "用于归纳可观察的互动行为，不复制教程原文。"
+  },
+  {
+    "source_id": "SRC-EDITORIAL-001",
+    "name": "项目编辑归纳",
+    "url": null,
+    "source_kind": "editorial_synthesis",
+    "use_for": [
+      "高风险边界",
+      "训练覆盖补充"
+    ],
+    "rights_status": "internal_draft",
+    "notes": "由项目内容设计归纳，必须经过有直播经验的带教老师审核后才能标记为已验证。"
+  }
+]

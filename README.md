@@ -36,8 +36,14 @@ PYTHONPATH=backend uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 ### 运行测试
 ```bash
 cd AI主播陪练开发
-uv run pytest      # 22 项 mock 测试
+uv run pytest      # 35 项 mock 测试
 ```
+
+### 内容库
+弹幕与反馈由内容库驱动。内容库文件位于 `backend/app/data/content_library/`
+（`scenario_cards.jsonl` 60 张场景卡、`teaching_rules.jsonl` 20 张规则卡、
+`source_registry.json`、`manifest.json`），随后端发布，不依赖外部绝对路径。
+加载服务见 `backend/app/services/content_library.py`（内存索引筛选，无向量检索）。
 
 ### 接入真实模型（真实验收前）
 在项目根目录建 `.env`（已 gitignore，可从 `.env.example` 复制），填：

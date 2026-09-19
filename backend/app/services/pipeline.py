@@ -1,8 +1,8 @@
 import threading
 
 from ..db import SessionLocal
-from ..models import Feedback, Recording, Training, Transcript, now
-from . import asr, feedback
+from ..models import BulletEvent, Feedback, Recording, Training, Transcript, now
+from . import asr, content_library, feedback
 
 
 def reset_results(db, training_id):
@@ -41,7 +41,19 @@ def run_pipeline(training_id: int) -> None:
             transcript = (
                 db.query(Transcript).filter_by(training_id=training_id).first()
             )
-            fb = feedback.generate_feedback(t, transcript)
+            bullets = (
+                db.query(BulletEvent)
+                .filter_by(training_id=training_id)
+                .order_by(BulletEvent.at_sec, BulletEvent.id)
+                .all()
+            )
+            live_type_en = content_library.LIVE_TYPE_TO_EN.get(t.live_type)
+            rules = (
+                content_library.get_library().rules_for_live_type(live_type_en)
+                if live_type_en
+                else []
+            )
+            fb = feedback.generate_feedback(t, transcript, bullets, rules)
             db.add(
                 Feedback(
                     training_id=training_id,

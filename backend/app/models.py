@@ -56,6 +56,9 @@ class BulletEvent(Base):
     text = Column(String(500), nullable=False)
     at_sec = Column(Float, nullable=True)
     source = Column(String(32), nullable=False, default="fixed")
+    # 内容库场景回溯字段（兼容扩展：旧数据两列均为 NULL，不破坏原有 API）
+    scenario_id = Column(String(64), nullable=True, index=True)
+    meta = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=now)
 
 

@@ -11,7 +11,7 @@ from ..core.errors import bad_request, conflict, not_found
 from ..db import get_db
 from ..models import BulletEvent, Feedback, Recording, Training, Transcript
 from ..schemas import LIVE_TYPES, BulletIn, TrainingCreate
-from ..services import bullets as bullets_svc
+from ..services import bullets as bullets_svc, content_library
 from ..services.pipeline import reset_results, run_pipeline
 
 router = APIRouter()
@@ -32,6 +32,47 @@ def _training_dict(t: Training) -> dict:
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "finished_at": t.finished_at.isoformat() if t.finished_at else None,
     }
+
+
+def _bullet_event(training_id: int, b: BulletIn, lib) -> BulletEvent:
+    """把客户端带回的弹幕落库，并附着内容库场景元数据。
+
+    场景元数据以内容库为准（服务端权威）；客户端只提供 scenario_id 用于回溯，
+    未知 scenario_id 时按客户端附带字段降级，仍无法识别则不写 meta。
+    """
+    sc = lib.scenarios_by_id.get(b.scenario_id) if b.scenario_id else None
+    if sc is not None:
+        meta = {
+            "viewer_intent": sc.get("viewer_intent"),
+            "sample_type": sc.get("sample_type"),
+            "difficulty": sc.get("difficulty"),
+            "must_cover": sc.get("must_cover") or [],
+            "failure_signals": sc.get("failure_signals") or [],
+            "source_refs": sc.get("source_refs") or [],
+        }
+        scenario_id = sc["scenario_id"]
+    elif b.scenario_id:
+        meta = {
+            "viewer_intent": b.viewer_intent,
+            "sample_type": b.sample_type,
+            "difficulty": b.difficulty,
+            "must_cover": b.must_cover or [],
+            "failure_signals": b.failure_signals or [],
+            "source_refs": b.source_refs or [],
+        }
+        scenario_id = b.scenario_id
+    else:
+        meta = None
+        scenario_id = None
+    return BulletEvent(
+        training_id=training_id,
+        kind=b.kind,
+        text=b.text,
+        at_sec=b.at_sec,
+        source="client",
+        scenario_id=scenario_id,
+        meta=meta,
+    )
 
 
 def _get_training(db: Session, training_id: int) -> Training:
@@ -65,7 +106,7 @@ def create_training(payload: TrainingCreate, db: Session = Depends(get_db)):
     db.add(t)
     db.commit()
     db.refresh(t)
-    script = bullets_svc.build_script(t.live_type, t.goal, t.topic)
+    script = bullets_svc.build_script(t.live_type, t.goal, t.topic, seed=t.id)
     return {"training": _training_dict(t), "script": script}
 
 
@@ -117,15 +158,10 @@ async def finish_training(
             size_bytes=size,
         )
     )
+    lib = content_library.get_library()
     for b in bullet_items:
         db.add(
-            BulletEvent(
-                training_id=training_id,
-                kind=b.kind,
-                text=b.text,
-                at_sec=b.at_sec,
-                source="client",
-            )
+            _bullet_event(training_id, b, lib)
         )
     t.status = "saved"
     db.commit()
@@ -178,7 +214,9 @@ def retrain(training_id: int, db: Session = Depends(get_db)):
     db.add(new_t)
     db.commit()
     db.refresh(new_t)
-    script = bullets_svc.build_script(new_t.live_type, new_t.goal, new_t.topic)
+    script = bullets_svc.build_script(
+        new_t.live_type, new_t.goal, new_t.topic, seed=new_t.id
+    )
     return {"training": _training_dict(new_t), "script": script}
 
 

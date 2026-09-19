@@ -2,7 +2,7 @@ import json
 
 from app.api import trainings as t_mod
 from app.db import SessionLocal
-from app.models import Feedback, Recording, Training
+from app.models import BulletEvent, Feedback, Recording, Training
 
 WEBM = b"\x1a\x45\xdf\xa3" + b"\x00" * 64
 
@@ -63,6 +63,34 @@ def test_finish_valid(client, monkeypatch):
     assert resp.json()["training"]["status"] == "saved"
     db = SessionLocal()
     assert db.query(Recording).filter_by(training_id=tid).count() == 1
+    db.close()
+
+
+def test_finish_stores_scenario_meta(client, monkeypatch):
+    monkeypatch.setattr(t_mod, "run_pipeline", lambda tid: None)
+    tid = _create(client).json()["training"]["id"]
+    bullets = json.dumps(
+        [
+            {
+                "at_sec": 8,
+                "kind": "fixed_question",
+                "text": "现在下单实际是多少钱？",
+                "scenario_id": "EC-REG-010",
+            }
+        ]
+    )
+    resp = client.post(
+        f"/api/v1/trainings/{tid}/finish",
+        data={"bullets": bullets, "duration_sec": "10"},
+        files={"file": ("recording.webm", WEBM, "video/webm")},
+    )
+    assert resp.status_code == 200
+    db = SessionLocal()
+    ev = db.query(BulletEvent).filter_by(training_id=tid).first()
+    assert ev.scenario_id == "EC-REG-010"
+    # 服务端以内容库为准回填场景元数据，而不是盲信客户端
+    assert ev.meta["viewer_intent"] == "当前价格"
+    assert "明确当前可核实价格" in ev.meta["must_cover"]
     db.close()
 
 

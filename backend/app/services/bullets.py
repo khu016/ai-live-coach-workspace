@@ -1,54 +1,54 @@
-"""弹幕脚本生成。
+"""弹幕脚本生成（场景卡驱动）。
 
-本切片为确定性模板：预设关键问题 + 主题/通用互动弹幕池，按时间轴下发。
-"弹幕随主播发言实时变化"依赖流式 ASR，后置实现，此处不冒充。
+第一版仍按时间轴触发弹幕，不根据主播实时语音动态变化（依赖流式 ASR，后置实现）。
+弹幕文本来自内容库场景卡的 ``reference_utterance``（第一版训练弹幕），
+并保留场景元数据供反馈流程回溯。
+
+未审核内容统一以"训练场景"描述，绝不标注为"真实直播原句"。
 """
 
-FIXED_QUESTIONS = {
-    "带货": [
-        "这款产品的核心卖点是什么？",
-        "价格多少？有优惠吗？",
-        "有没有用过的人反馈？",
-    ],
-    "娱乐互动": [
-        "主播能和大家聊点开心的吗？",
-        "有什么才艺展示一下？",
-        "最近有什么好玩的事分享？",
-    ],
-    "知识内容": [
-        "这个知识点能再讲得通俗一点吗？",
-        "这个结论的依据是什么？",
-        "有没有常见的误区？",
-    ],
-}
+from . import content_library
 
-GENERIC_BULLETS = [
-    "讲得不错，继续！",
-    "能再具体一点吗？",
-    "新来的，主播在聊什么？",
-    "这里没太听懂。",
-    "主播加油！",
-]
+# 弹幕下发节奏（秒）
+FIRST_AT_SEC = 8
+AT_SEC_STEP = 20
+# 一次练习最多选取的场景数
+MAX_SCENARIOS = 8
 
 
-def _template_bullets(topic):
-    if topic:
-        return [
-            f"能再展开讲讲「{topic}」吗？",
-            f"关于「{topic}」，观众最关心什么？",
-            f"「{topic}」这里有什么坑吗？",
-            "讲得不错，继续！",
-            "能举个具体例子吗？",
-        ]
-    return list(GENERIC_BULLETS)
+def build_script(live_type, goal, topic=None, seed=None):
+    """根据直播类型与训练目标挑选场景卡，生成按时间触发的弹幕脚本。"""
+    lib = content_library.get_library()
+    live_type_en = content_library.LIVE_TYPE_TO_EN.get(live_type)
+    if live_type_en is None:
+        raise ValueError(f"不支持的直播类型：{live_type!r}")
 
+    must_ids = set(
+        content_library.MUST_COVER_SCENARIOS.get(live_type_en, [])
+    )
+    scenarios = lib.select_scenarios(
+        live_type_en,
+        goal=goal,
+        limit=MAX_SCENARIOS,
+        seed=seed,
+        include_must=True,
+    )
 
-def build_script(live_type, goal, topic):
     items = []
-    fixed = FIXED_QUESTIONS.get(live_type, [])
-    for i, q in enumerate(fixed[:3]):
-        items.append({"at_sec": 8 + i * 25, "kind": "fixed_question", "text": q})
-    for i, b in enumerate(_template_bullets(topic)[:5]):
-        items.append({"at_sec": 15 + i * 18, "kind": "dynamic", "text": b})
-    items.sort(key=lambda x: x["at_sec"])
+    for i, sc in enumerate(scenarios):
+        items.append(
+            {
+                "at_sec": FIRST_AT_SEC + i * AT_SEC_STEP,
+                "kind": "fixed_question" if sc["scenario_id"] in must_ids else "dynamic",
+                "text": sc["reference_utterance"],
+                "scenario_id": sc["scenario_id"],
+                "viewer_intent": sc["viewer_intent"],
+                "sample_type": sc["sample_type"],
+                "difficulty": sc["difficulty"],
+                "must_cover": sc["must_cover"],
+                "failure_signals": sc["failure_signals"],
+                "source_refs": sc["source_refs"],
+                "source_label": content_library.SCENARIO_SOURCE_LABEL,
+            }
+        )
     return items

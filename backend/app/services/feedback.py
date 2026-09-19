@@ -2,6 +2,7 @@ import json
 import re
 
 from ..schemas import FeedbackOut, Issue
+from . import content_library
 from .llm import call_chat
 from .prompts import FEEDBACK_SYSTEM, feedback_user_prompt
 
@@ -16,6 +17,16 @@ DIMENSION_MAP = {
     "内容质量": "内容质量",
     "内容": "内容质量",
 }
+
+
+def _as_list(v):
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return [str(x) for x in v]
+    if isinstance(v, str):
+        return [v]
+    return [str(v)]
 
 
 def _normalize_issue(it) -> Issue:
@@ -33,6 +44,11 @@ def _normalize_issue(it) -> Issue:
         retrain_target=str(
             it.get("retrain_target") or it.get("重练目标") or dim
         ),
+        trigger_bullet=it.get("trigger_bullet") or it.get("触发弹幕"),
+        scenario_id=it.get("scenario_id") or it.get("场景ID"),
+        rule_ids=_as_list(it.get("rule_ids") or it.get("命中规则")),
+        missed_points=_as_list(it.get("missed_points") or it.get("未覆盖要点")),
+        source_refs=_as_list(it.get("source_refs") or it.get("内容来源")),
     )
 
 
@@ -69,16 +85,42 @@ def parse_feedback(text: str) -> FeedbackOut:
     return FeedbackOut(issues=issues, top_issue_ids=[int(x) for x in top])
 
 
-def generate_feedback(training, transcript) -> FeedbackOut:
+def _sanitize_refs(fb: FeedbackOut, lib) -> FeedbackOut:
+    """回溯字段服务端校验：去掉模型自造的 scenario_id / rule_id。
+
+    保证反馈能追溯到真实存在的场景卡与规则卡，模型幻觉的 ID 一律置空 / 剔除。
+    """
+    known_scenarios = lib.scenarios_by_id
+    known_rules = lib.rules_by_id
+    for issue in fb.issues:
+        if issue.scenario_id and issue.scenario_id not in known_scenarios:
+            issue.scenario_id = None
+        issue.rule_ids = [r for r in issue.rule_ids if r in known_rules]
+    return fb
+
+
+def generate_feedback(training, transcript, bullets=None, rules=None) -> FeedbackOut:
+    """生成练后反馈。
+
+    - ``bullets``：本次练习实际出现的弹幕事件（BulletEvent 或带 meta 的字典）。
+    - ``rules``：相关教学规则卡；为空时按直播类型从内容库自动加载。
+    """
+    lib = content_library.get_library()
+    if rules is None:
+        live_type_en = content_library.LIVE_TYPE_TO_EN.get(training.live_type)
+        rules = lib.rules_for_live_type(live_type_en) if live_type_en else []
     messages = [
         {"role": "system", "content": FEEDBACK_SYSTEM},
-        {"role": "user", "content": feedback_user_prompt(training, transcript)},
+        {
+            "role": "user",
+            "content": feedback_user_prompt(training, transcript, bullets, rules),
+        },
     ]
     last_err = None
     for _ in range(3):
         text = call_chat(messages)
         try:
-            return parse_feedback(text)
+            return _sanitize_refs(parse_feedback(text), lib)
         except Exception as e:  # noqa: BLE001
             last_err = e
     raise RuntimeError(f"反馈解析失败（已重试）: {last_err}")
