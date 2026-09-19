@@ -16,7 +16,8 @@ class Settings:
             "MODEL_BASE_URL", "https://api.deepseek.com/v1"
         ).rstrip("/")
         self.asr_provider = os.getenv("ASR_PROVIDER", "mock")
-        self.asr_api_key = os.getenv("ASR_API_KEY", "")
+        self.asr_app_id = os.getenv("ASR_APP_ID", "")
+        self.asr_secret_key = os.getenv("ASR_SECRET_KEY", "")
         self.data_dir = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))
         self.recording_max_mb = int(os.getenv("RECORDING_MAX_MB", "1024"))
         self.practice_max_sec = int(os.getenv("PRACTICE_MAX_SEC", "1200"))

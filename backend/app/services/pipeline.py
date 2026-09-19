@@ -25,7 +25,7 @@ def run_pipeline(training_id: int) -> None:
             t.status = "transcribing"
             db.commit()
 
-            result = asr.get_asr().transcribe(rec.file_path)
+            result = asr.get_asr().transcribe(rec.file_path, rec.duration_sec)
             db.add(
                 Transcript(
                     training_id=training_id,

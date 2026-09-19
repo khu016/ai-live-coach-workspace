@@ -10,6 +10,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "httpx>=0.27",
     "python-dotenv>=1.0",
+    "av>=18.1.0",
 ]
 
 [dependency-groups]
