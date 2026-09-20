@@ -231,6 +231,11 @@ registerProcessor('pcm-processor', PCMProcessor);
 
 async function setupAudio() {
   audioCtx = new AudioContext({ sampleRate: 16000 });
+  console.log('[asr] AudioContext 实际采样率 =', audioCtx.sampleRate, 'Hz');
+  if (audioCtx.sampleRate !== 16000) {
+    document.getElementById('asr-note').textContent = '警告：浏览器实际采样率 ' + audioCtx.sampleRate + ' Hz（非 16kHz）';
+    document.getElementById('asr-note').hidden = false;
+  }
   const source = audioCtx.createMediaStreamSource(mediaStream);
   const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
   const url = URL.createObjectURL(blob);

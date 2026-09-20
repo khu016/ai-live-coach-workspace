@@ -89,8 +89,9 @@ async def asr_ws(websocket: WebSocket, training_id: int):
                             await _push(save_bullet(training_id, draft))
                     else:
                         await _push(event_to_message(ev))
-            except Exception:  # noqa: BLE001
-                await _push({"type": "asr_error", "message": "实时识别中断"})
+            except Exception as e:  # noqa: BLE001
+                print(f"[asr] 识别事件流异常：{e}")
+                await _push({"type": "asr_error", "message": str(e) or "实时识别中断"})
 
         async def _cold_start_timer():
             nonlocal total_audio_bytes
@@ -114,7 +115,15 @@ async def asr_ws(websocket: WebSocket, training_id: int):
                 data = msg.get("bytes")
                 if data is not None:
                     total_audio_bytes += len(data)
-                    await session.send_audio(data)
+                    try:
+                        await session.send_audio(data)
+                    except Exception as e:  # noqa: BLE001
+                        print(
+                            f"[asr] send_audio 失败（已收 {total_audio_bytes} 字节"
+                            f"≈ {total_audio_bytes / 32000:.1f}s）：{e}"
+                        )
+                        await _push({"type": "asr_error", "message": "实时识别连接中断"})
+                        break
                     continue
                 text = msg.get("text")
                 if text:
