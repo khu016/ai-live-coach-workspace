@@ -60,10 +60,16 @@ def _bullet_lines(bullets) -> list:
         at = _get(b, "at_sec")
         text = _get(b, "text", "")
         sid = _get(b, "scenario_id", "")
+        tt = _get(b, "trigger_type", "")
+        tr = _get(b, "trigger_reason", "")
         meta = _get(b, "meta") or {}
         must = meta.get("must_cover") or []
         fail = meta.get("failure_signals") or []
         line = f"[{at}] scenario_id={sid} 弹幕={text}"
+        if tt:
+            line += f" 触发类型={tt}"
+        if tr:
+            line += f" 触发依据={tr}"
         if must:
             line += f" 需覆盖={must}"
         if fail:
@@ -72,7 +78,7 @@ def _bullet_lines(bullets) -> list:
     return lines
 
 
-def feedback_user_prompt(training, transcript, bullets=None, rules=None) -> str:
+def feedback_user_prompt(training, segments, bullets=None, rules=None) -> str:
     lines = [
         f"直播类型：{training.live_type}",
         f"训练目标：{training.goal}",
@@ -87,11 +93,17 @@ def feedback_user_prompt(training, transcript, bullets=None, rules=None) -> str:
             '"当前资料无法确认"，不得编造。'
         )
     lines.append("")
-    lines.append("主播转写（带时间戳，单位秒）：")
-    for seg in transcript.segments or []:
-        lines.append(f"[{seg.get('start')}-{seg.get('end')}] {seg.get('text')}")
+    lines.append("主播确定转写（带时间戳，单位秒）：")
+    segs = segments or []
+    if segs:
+        for seg in segs:
+            lines.append(
+                f"[{seg.get('start')}-{seg.get('end')}] {seg.get('text')}"
+            )
+    else:
+        lines.append("（实时转写缺失，仅有录像，无法提供逐字证据，不得编造原话）")
     lines.append("")
-    lines.append("实际出现的观众弹幕：")
+    lines.append("实际出现的观众弹幕（含触发依据）：")
     bl = _bullet_lines(bullets or [])
     if bl:
         lines.extend(bl)
@@ -106,4 +118,48 @@ def feedback_user_prompt(training, transcript, bullets=None, rules=None) -> str:
         lines.append("（无）")
     lines.append("")
     lines.append("请按上述 JSON 格式输出练后反馈。")
+    return "\n".join(lines)
+
+
+DYNAMIC_BULLET_SYSTEM = """你是模拟直播间里的一名观众，基于主播最近说完的几句话，生成一条相关弹幕。
+
+硬性边界：
+- 只能依据提供的"主播近期发言"和"已出现弹幕"生成，不得编造主播没说的内容。
+- 不得编造商品价格、库存、功效、平台规则或任何用户身份信息；缺资料时问与直播相关的一般问题即可。
+- 单条弹幕不超过 35 个汉字，口语化，像真实观众随口说出。
+- 不得重复历史弹幕的意思；不得连续追问同一件事。
+- trigger_type 只能从以下四类选：追问、质疑、普通互动、话题承接。
+  - 追问：主播信息不完整、表达含糊，需要更多细节。
+  - 质疑：主播绝对承诺、依据不足、前后不一致或回避问题。
+  - 普通互动：问候、共鸣、话题回应等低难度互动。
+  - 话题承接：主播完成一个语义段落后，提出相关问题把话题往下带。
+- reason 用一句话说明为什么发这条弹幕（对应哪句发言、什么问题）。
+
+输出：只输出一个 JSON 对象，不要任何其他文字，不要 markdown 代码块。
+结构：{"trigger_type":"追问|质疑|普通互动|话题承接","text":"弹幕内容","reason":"触发依据"}
+"""
+
+
+def dynamic_bullet_user_prompt(training, recent_segments, history_bullets=None) -> str:
+    lines = [
+        f"直播类型：{training.live_type}",
+        f"训练目标：{training.goal}",
+    ]
+    if training.topic:
+        lines.append(f"主题：{training.topic}")
+    if training.product_info:
+        lines.append(f"商品资料：{training.product_info}")
+    lines.append("")
+    lines.append("主播近期发言（确定转写，按时间顺序）：")
+    for i, seg in enumerate(recent_segments or []):
+        lines.append(f"[{i}] {seg.get('text') or ''}")
+    lines.append("")
+    lines.append("已出现弹幕：")
+    if history_bullets:
+        for b in history_bullets:
+            lines.append(f"- {b.get('text') or ''}")
+    else:
+        lines.append("（无）")
+    lines.append("")
+    lines.append("请按上述 JSON 格式生成一条动态弹幕。")
     return "\n".join(lines)

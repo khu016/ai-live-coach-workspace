@@ -10,7 +10,7 @@
   body { margin:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); }
   header { padding:16px 24px; border-bottom:1px solid var(--line); font-size:18px; font-weight:600; }
   header small { color:var(--dim); font-weight:400; margin-left:8px; }
-  .wrap { max-width:960px; margin:0 auto; padding:24px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; }
   h2 { margin:0 0 16px; font-size:16px; }
   label { display:block; margin:12px 0 4px; color:var(--dim); font-size:13px; }
@@ -20,12 +20,16 @@
   button.ghost { background:transparent; border:1px solid var(--line); color:var(--text); }
   button:disabled { opacity:.5; cursor:not-allowed; }
   .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .cols { display:flex; gap:16px; }
+  .cols > div { flex:1; min-width:0; }
   video { width:100%; border-radius:8px; background:#000; }
-  .bullets { max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:12px; margin:12px 0; }
-  .bullet { margin:6px 0; padding:8px 10px; border-radius:8px; background:#111827; }
-  .bullet.fixed { border-left:3px solid #f5a623; }
-  .bullet.dynamic { border-left:3px solid var(--accent); }
+  .panel { border:1px solid var(--line); border-radius:8px; padding:12px; margin:12px 0; }
+  .scroll { max-height:260px; overflow-y:auto; }
+  .bullet { margin:6px 0; padding:8px 10px; border-radius:8px; background:#111827; border-left:3px solid var(--accent); }
   .bullet .t { color:var(--dim); font-size:12px; margin-right:6px; }
+  .bullet .tag { display:inline-block; font-size:11px; padding:1px 6px; border-radius:8px; background:#1f2a44; color:#b8c7ff; margin-right:6px; }
+  .seg { margin:4px 0; padding:4px 8px; border-radius:6px; background:#111827; }
+  .seg.partial { color:var(--dim); font-style:italic; background:transparent; border:1px dashed var(--line); }
   .issue { border:1px solid var(--line); border-radius:8px; padding:12px; margin:10px 0; }
   .issue .dim { display:inline-block; font-size:12px; padding:2px 8px; border-radius:10px; background:#1f2a44; color:#b8c7ff; }
   .issue .top { border-color:#f5a623; }
@@ -33,12 +37,14 @@
   .hint { color:var(--dim); font-size:13px; }
   .error { color:#ff7b7b; background:#2a1518; border:1px solid #5a2a30; padding:10px; border-radius:8px; margin:10px 0; }
   .ok { color:#7be3a3; }
+  .warn { color:#f5a623; }
   .status { font-size:14px; margin:8px 0; }
+  .dot { font-size:12px; }
   [hidden] { display:none !important; }
 </style>
 </head>
 <body>
-<header>AI 主播陪练 <small>个人主播最小纵向切片 · 验收页</small></header>
+<header>AI 主播陪练 <small>实时互动 · 验收页</small></header>
 <div class="wrap">
 
   <div id="view-create" class="card">
@@ -66,9 +72,24 @@
   <div id="view-practice" class="card" hidden>
     <h2>模拟直播</h2>
     <div class="hint" style="margin-bottom:8px;">模拟观众 · 不会真实开播</div>
+    <div class="status">
+      麦克风 <span id="st-mic" class="dot ok">●</span> ·
+      语音识别 <span id="st-asr" class="dot ok">●</span> ·
+      动态互动 <span id="st-bullet" class="dot ok">●</span>
+    </div>
+    <div id="asr-note" class="hint warn" hidden></div>
     <video id="preview" autoplay muted playsinline></video>
     <div class="status">已练习 <span id="elapsed">0</span> 秒</div>
-    <div id="bullets" class="bullets"></div>
+    <div class="cols">
+      <div>
+        <div class="hint">实时转写</div>
+        <div id="transcript" class="panel scroll" style="min-height:120px;"><div class="hint">说话后这里会显示文字…</div></div>
+      </div>
+      <div>
+        <div class="hint">模拟观众弹幕</div>
+        <div id="bullets" class="panel scroll"></div>
+      </div>
+    </div>
     <div class="row">
       <button id="btn-end" onclick="endPractice()">结束练习</button>
     </div>
@@ -98,9 +119,10 @@
 
 <script>
 let currentTraining = null;
-let currentScript = [];
 let mediaStream = null, mediaRecorder = null, chunks = [];
-let shownBullets = [];
+let audioCtx = null, workletNode = null, ws = null;
+let finalSegments = [];
+let currentPartial = '';
 let practiceStart = 0, timerId = null;
 
 function showView(name) {
@@ -129,7 +151,6 @@ async function createTraining() {
   if (!r.ok) { const e = await r.json(); showError('create-error', e.error.message); return; }
   const data = await r.json();
   currentTraining = data.training;
-  currentScript = data.script;
   await startPractice();
 }
 
@@ -142,36 +163,148 @@ async function startPractice() {
     return;
   }
   document.getElementById('preview').srcObject = mediaStream;
-  chunks = []; shownBullets = [];
+  chunks = []; finalSegments = []; currentPartial = '';
+  resetASRStatus();
+
+  // 录像（回看用）
   const mime = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']
     .find(m => MediaRecorder.isTypeSupported(m));
   mediaRecorder = new MediaRecorder(mediaStream, mime ? {mimeType:mime} : undefined);
   mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
   mediaRecorder.start();
-  practiceStart = Date.now();
+
   document.getElementById('bullets').innerHTML = '';
+  document.getElementById('transcript').innerHTML = '<div class="hint">说话后这里会显示文字…</div>';
   document.getElementById('elapsed').textContent = '0';
   showView('practice');
+  practiceStart = Date.now();
   timerId = setInterval(tick, 500);
+
+  // 实时语音识别（PCM 16k → WebSocket → 后端 → 腾讯云）
+  try {
+    await setupAudio();
+    await connectASR();
+  } catch (err) {
+    setASRStatus('down', '实时识别不可用：' + (err && err.message ? err.message : err));
+  }
 }
 
 function tick() {
   const sec = Math.floor((Date.now() - practiceStart)/1000);
   document.getElementById('elapsed').textContent = sec;
-  currentScript.filter(b => b.at_sec <= sec && !shownBullets.includes(b)).forEach(b => {
-    shownBullets.push(b);
-    const div = document.createElement('div');
-    div.className = 'bullet ' + (b.kind === 'fixed_question' ? 'fixed' : 'dynamic');
-    div.innerHTML = '<span class="t">'+sec+'s</span>' +
-      (b.scenario_id ? '<span class="t hint">训练场景</span>' : '') +
-      escapeHtml(b.text);
-    document.getElementById('bullets').appendChild(div);
-    document.getElementById('bullets').scrollTop = 99999;
+}
+
+function resetASRStatus() {
+  setDot('st-mic', 'ok'); setDot('st-asr', 'ok'); setDot('st-bullet', 'ok');
+  document.getElementById('asr-note').hidden = true;
+}
+function setDot(id, state) {
+  const el = document.getElementById(id);
+  el.textContent = state === 'ok' ? '●' : '○';
+  el.className = 'dot ' + (state === 'ok' ? 'ok' : 'warn');
+}
+function setASRStatus(state, note) {
+  setDot('st-asr', state);
+  const el = document.getElementById('asr-note');
+  if (note) { el.textContent = note; el.hidden = false; }
+}
+
+// ---- 音频采集（AudioWorklet，16kHz/16bit PCM）----
+const WORKLET_CODE = `
+class PCMProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const input = inputs[0];
+    if (input && input[0]) {
+      const ch = input[0];
+      const pcm = new Int16Array(ch.length);
+      for (let i = 0; i < ch.length; i++) {
+        const s = Math.max(-1, Math.min(1, ch[i]));
+        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      this.port.postMessage(pcm.buffer, [pcm.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-processor', PCMProcessor);
+`;
+
+async function setupAudio() {
+  audioCtx = new AudioContext({ sampleRate: 16000 });
+  const source = audioCtx.createMediaStreamSource(mediaStream);
+  const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  await audioCtx.audioWorklet.addModule(url);
+  workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
+  workletNode.port.onmessage = (e) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(e.data);
+    }
+  };
+  source.connect(workletNode);
+}
+
+function connectASR() {
+  return new Promise((resolve, reject) => {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/api/v1/trainings/${currentTraining.id}/asr/ws`);
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = () => resolve();
+    ws.onmessage = (e) => {
+      try { handleASRMessage(JSON.parse(e.data)); } catch (err) { /* ignore */ }
+    };
+    ws.onerror = () => { setASRStatus('down', '实时识别连接失败'); };
+    ws.onclose = () => {};
+    setTimeout(() => reject(new Error('实时识别连接超时')), 6000);
   });
+}
+
+function handleASRMessage(msg) {
+  if (msg.type === 'transcript') {
+    if (msg.kind === 'final') {
+      if (msg.text && msg.text.trim()) finalSegments.push(msg.text);
+      currentPartial = '';
+    } else if (msg.kind === 'partial') {
+      currentPartial = msg.text;
+    }
+    renderTranscript();
+  } else if (msg.type === 'bullet') {
+    addBullet(msg);
+  } else if (msg.type === 'asr_error') {
+    setASRStatus('down', msg.message || '实时识别中断');
+  } else if (msg.type === 'error') {
+    setASRStatus('down', msg.message || '实时识别错误');
+  }
+}
+
+function renderTranscript() {
+  const el = document.getElementById('transcript');
+  let html = '';
+  for (const s of finalSegments) html += '<div class="seg">' + escapeHtml(s) + '</div>';
+  if (currentPartial) html += '<div class="seg partial">' + escapeHtml(currentPartial) + '…</div>';
+  el.innerHTML = html || '<div class="hint">说话后这里会显示文字…</div>';
+  el.scrollTop = 99999;
+}
+
+function addBullet(b) {
+  const el = document.getElementById('bullets');
+  const div = document.createElement('div');
+  div.className = 'bullet';
+  const sec = Math.floor(b.at_sec != null ? b.at_sec : (Date.now()-practiceStart)/1000);
+  const tag = b.trigger_type ? '<span class="tag">'+escapeHtml(b.trigger_type)+'</span>' : '';
+  const fallback = b.status === 'fallback' ? '<span class="tag">预设兜底</span>' : '';
+  div.innerHTML = '<span class="t">'+sec+'s</span>'+tag+fallback+escapeHtml(b.text);
+  el.appendChild(div);
+  el.scrollTop = 99999;
 }
 
 function endPractice() {
   clearInterval(timerId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'end' }));
+  }
+  if (workletNode) { try { workletNode.disconnect(); } catch(e){} }
+  if (audioCtx) { try { audioCtx.close(); } catch(e){} }
   mediaRecorder.stop();
   mediaRecorder.onstop = async () => {
     const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'video/webm' });
@@ -180,12 +313,7 @@ function endPractice() {
     const fd = new FormData();
     fd.append('file', blob, 'recording.webm');
     fd.append('duration_sec', String(duration));
-    fd.append('bullets', JSON.stringify(shownBullets.map(b => ({
-      at_sec:b.at_sec, kind:b.kind, text:b.text,
-      scenario_id:b.scenario_id, viewer_intent:b.viewer_intent,
-      sample_type:b.sample_type, difficulty:b.difficulty,
-      must_cover:b.must_cover, failure_signals:b.failure_signals, source_refs:b.source_refs
-    }))));
+    // 弹幕已由后端实时落库，不再随 finish 上报
     const r = await fetch('/api/v1/trainings/'+currentTraining.id+'/finish', { method:'POST', body: fd });
     if (!r.ok) { const e = await r.json(); alert(e.error.message); return; }
     const data = await r.json();
@@ -206,8 +334,7 @@ async function pollFeedback(id) {
   const data = await r.json();
   const st = data.status;
   const statusEl = document.getElementById('fb-status');
-  if (st === 'transcribing') statusEl.textContent = '正在转写录像…';
-  else if (st === 'analyzing') statusEl.textContent = '正在生成反馈…';
+  if (st === 'analyzing') statusEl.textContent = '正在生成反馈…';
   else if (st === 'feedback_ready') { statusEl.textContent = ''; renderFeedback(data.feedback); return; }
   else if (st === 'failed') { statusEl.innerHTML = '<span class="error">分析失败，可返回重试</span>'; return; }
   else statusEl.textContent = '处理中…';
@@ -242,7 +369,6 @@ async function doRetrain() {
   if (!r.ok) { const e = await r.json(); alert(e.error.message); return; }
   const data = await r.json();
   currentTraining = data.training;
-  currentScript = data.script;
   document.getElementById('btn-compare').hidden = true;
   await startPractice();
 }
@@ -265,6 +391,7 @@ function side(title, s) {
 
 function backToCreate() {
   stopMedia(); clearInterval(timerId);
+  if (ws) { try { ws.close(); } catch(e){} }
   showView('create');
 }
 

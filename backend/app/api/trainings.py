@@ -119,7 +119,7 @@ def get_training(training_id: int, db: Session = Depends(get_db)):
 async def finish_training(
     training_id: int,
     file: UploadFile = File(...),
-    bullets: str = Form(...),
+    bullets: Optional[str] = Form(None),
     duration_sec: Optional[float] = Form(None),
     db: Session = Depends(get_db),
 ):
@@ -127,11 +127,13 @@ async def finish_training(
     if t.status not in ("created", "recording"):
         raise conflict("当前状态不可结束练习")
 
-    try:
-        bullets_raw = json.loads(bullets)
-        bullet_items = [BulletIn(**b) for b in bullets_raw]
-    except Exception:  # noqa: BLE001
-        raise bad_request("bullets 必须是 JSON 数组")
+    bullet_items = []
+    if bullets:
+        try:
+            bullets_raw = json.loads(bullets)
+            bullet_items = [BulletIn(**b) for b in bullets_raw]
+        except Exception:  # noqa: BLE001
+            raise bad_request("bullets 必须是 JSON 数组")
 
     content = await file.read()
     ext = _validate_video(content[:16], file.filename)

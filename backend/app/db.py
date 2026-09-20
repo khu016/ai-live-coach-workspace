@@ -38,3 +38,14 @@ def run_migrations() -> None:
             )
         if "meta" not in cols:
             conn.exec_driver_sql("ALTER TABLE bullet_events ADD COLUMN meta JSON")
+        for col, ddl in (
+            ("trigger_type", "VARCHAR(32)"),
+            ("trigger_segment_id", "INTEGER"),
+            ("trigger_reason", "VARCHAR(500)"),
+            ("status", "VARCHAR(32)"),
+            ("response_segment_ids", "JSON"),
+        ):
+            if col not in cols:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE bullet_events ADD COLUMN {col} {ddl}"
+                )

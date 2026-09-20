@@ -47,6 +47,22 @@ class Transcript(Base):
     created_at = Column(DateTime, default=now)
 
 
+class TranscriptSegment(Base):
+    """确定转写片段（稳定语句），实时识别的反馈证据与动态弹幕触发依据。"""
+
+    __tablename__ = "transcript_segments"
+
+    id = Column(Integer, primary_key=True)
+    training_id = Column(Integer, nullable=False, index=True)
+    source = Column(String(32), nullable=False, default="realtime")
+    start_sec = Column(Float, nullable=True)
+    end_sec = Column(Float, nullable=True)
+    text = Column(Text, nullable=False, default="")
+    seq = Column(Integer, nullable=True)
+    word_list = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=now)
+
+
 class BulletEvent(Base):
     __tablename__ = "bullet_events"
 
@@ -59,6 +75,12 @@ class BulletEvent(Base):
     # 内容库场景回溯字段（兼容扩展：旧数据两列均为 NULL，不破坏原有 API）
     scenario_id = Column(String(64), nullable=True, index=True)
     meta = Column(JSON, nullable=True)
+    # 证据链字段（动态弹幕）：触发类型 / 触发转写片段 / 触发依据 / 状态 / 主播回应片段
+    trigger_type = Column(String(32), nullable=True)
+    trigger_segment_id = Column(Integer, nullable=True)
+    trigger_reason = Column(String(500), nullable=True)
+    status = Column(String(32), nullable=True)
+    response_segment_ids = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=now)
 
 

@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -9,6 +10,7 @@ from pathlib import Path
 import httpx
 
 from ..core.config import settings
+from .asr_base import ASREvent
 from .audio import extract_audio_to_wav
 
 # 讯飞语音转写（录音文件转写，LFASR）WebAPI
@@ -36,6 +38,79 @@ class MockASR:
         ]
         full_text = "".join(s["text"] for s in segments)
         return {"segments": segments, "full_text": full_text, "provider": "mock"}
+
+
+class MockRealtimeSession:
+    """确定性实时转写会话（阻塞语义，对齐真实流式会话）。
+
+    每喂一个音频块放行一个脚本事件；``send_end`` 后放行剩余全部事件，
+    随后 ``receive_event`` 返回 None 表示流结束。"""
+
+    def __init__(self, events):
+        self._events = list(events)
+        self._pos = 0
+        self._pending = 0
+        self._ended = False
+        self._wake = asyncio.Event()
+        self.sent_chunks = 0
+
+    async def send_audio(self, pcm):
+        if pcm:
+            self.sent_chunks += 1
+            self._pending += 1
+            self._wake.set()
+
+    async def send_end(self):
+        self._ended = True
+        self._pending = len(self._events) - self._pos  # 放行剩余全部
+        self._wake.set()
+
+    async def receive_event(self):
+        while True:
+            if self._pos < len(self._events) and self._pending > 0:
+                self._pending -= 1
+                ev = self._events[self._pos]
+                self._pos += 1
+                return ev
+            if self._ended:
+                return None
+            await self._wake.wait()
+            self._wake.clear()
+
+    async def close(self):
+        self._ended = True
+        self._wake.set()
+
+
+class MockRealtimeASR:
+    """mock 实时 ASR，输出确定性事件序列（测试/开发用，不得冒充真实转写）。"""
+
+    provider = "mock"
+
+    DEFAULT_EVENTS = (
+        ASREvent(kind="partial", text="大家好", start_sec=0.0, end_sec=0.8, seq=0),
+        ASREvent(
+            kind="final",
+            text="大家好，欢迎来到我的直播间。",
+            start_sec=0.0,
+            end_sec=2.5,
+            seq=0,
+        ),
+        ASREvent(kind="partial", text="今天给大家", start_sec=2.5, end_sec=3.5, seq=1),
+        ASREvent(
+            kind="final",
+            text="今天给大家介绍一款很实用的产品。",
+            start_sec=2.5,
+            end_sec=6.0,
+            seq=1,
+        ),
+    )
+
+    def __init__(self, events=None):
+        self._events = tuple(events) if events is not None else self.DEFAULT_EVENTS
+
+    async def open_session(self, **params):
+        return MockRealtimeSession(self._events)
 
 
 class XfyunASR:

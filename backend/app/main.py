@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api import trainings
+from .api import realtime, trainings
 from .core.errors import AppError
 from .db import SessionLocal, engine, run_migrations
 from .models import Base, Training
@@ -56,4 +56,5 @@ async def content_library_error_handler(request: Request, exc: ContentLibraryErr
 
 
 app.include_router(trainings.router, prefix="/api/v1")
+app.include_router(realtime.router, prefix="/api/v1")
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

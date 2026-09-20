@@ -99,9 +99,10 @@ def _sanitize_refs(fb: FeedbackOut, lib) -> FeedbackOut:
     return fb
 
 
-def generate_feedback(training, transcript, bullets=None, rules=None) -> FeedbackOut:
+def generate_feedback(training, segments, bullets=None, rules=None) -> FeedbackOut:
     """生成练后反馈。
 
+    - ``segments``：确定转写片段列表（dict：{start, end, text}，实时识别的稳定结果）。
     - ``bullets``：本次练习实际出现的弹幕事件（BulletEvent 或带 meta 的字典）。
     - ``rules``：相关教学规则卡；为空时按直播类型从内容库自动加载。
     """
@@ -113,7 +114,7 @@ def generate_feedback(training, transcript, bullets=None, rules=None) -> Feedbac
         {"role": "system", "content": FEEDBACK_SYSTEM},
         {
             "role": "user",
-            "content": feedback_user_prompt(training, transcript, bullets, rules),
+            "content": feedback_user_prompt(training, segments, bullets, rules),
         },
     ]
     last_err = None

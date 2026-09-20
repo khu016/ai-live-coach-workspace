@@ -36,7 +36,7 @@ PYTHONPATH=backend uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 ### 运行测试
 ```bash
 cd AI主播陪练开发
-uv run pytest      # 35 项 mock 测试
+uv run pytest      # 67 项 mock 测试
 ```
 
 ### 内容库
@@ -52,9 +52,12 @@ MODEL_PROVIDER=deepseek
 MODEL_NAME=deepseek-chat
 MODEL_API_KEY=<你的 DeepSeek Key>
 MODEL_BASE_URL=https://api.deepseek.com/v1
-ASR_PROVIDER=mock        # 语音转写暂用 mock；接入讯飞后改为 xfyun 并填 ASR_API_KEY
+ASR_PROVIDER=tencent_realtime        # mock | tencent_realtime（第一版主 ASR）
+TENCENT_ASR_APPID=<腾讯云 APPID>
+TENCENT_ASR_SECRET_ID=<腾讯云 SecretId>
+TENCENT_ASR_SECRET_KEY=<腾讯云 SecretKey>
 ```
-填好后重启服务即可跑真实模型冒烟。未填 Key 时练后反馈会走到 `failed` 状态（如实标注，不冒充真实效果）。
+填好后重启服务即可跑真实模型冒烟。未填 Key 时相关流程会如实标注/报错，不冒充真实效果。
 
 ## 配置边界
 - 本项目只用自己目录内的 `.env` 和 API Key；不从外层工具包或其他 Agent 项目隐式读取。

@@ -1,8 +1,8 @@
 import threading
 
 from ..db import SessionLocal
-from ..models import BulletEvent, Feedback, Recording, Training, Transcript, now
-from . import asr, content_library, feedback
+from ..models import BulletEvent, Feedback, Transcript, TranscriptSegment, Training, now
+from . import content_library, feedback
 
 
 def reset_results(db, training_id):
@@ -12,34 +12,27 @@ def reset_results(db, training_id):
 
 
 def run_pipeline(training_id: int) -> None:
+    """练后反馈流水线（实时转写优先，无离线转写）。
+
+    实时阶段已把确定转写落库为 ``transcript_segments``、弹幕落库为
+    ``bullet_events``（含触发依据）。这里直接用它们生成反馈；转写缺失时不
+    阻塞、不伪造，用已有稳定文本与录像完成反馈（证据链可能为空，提示如实）。
+    """
+
     def _run():
         db = SessionLocal()
         try:
             t = db.get(Training, training_id)
             if t is None:
                 return
-            rec = db.query(Recording).filter_by(training_id=training_id).first()
-            if rec is None:
-                raise RuntimeError("录像不存在")
-
-            t.status = "transcribing"
-            db.commit()
-
-            result = asr.get_asr().transcribe(rec.file_path, rec.duration_sec)
-            db.add(
-                Transcript(
-                    training_id=training_id,
-                    segments=result.get("segments", []),
-                    full_text=result.get("full_text", ""),
-                )
-            )
-            db.commit()
-
             t.status = "analyzing"
             db.commit()
 
-            transcript = (
-                db.query(Transcript).filter_by(training_id=training_id).first()
+            segs = (
+                db.query(TranscriptSegment)
+                .filter_by(training_id=training_id)
+                .order_by(TranscriptSegment.start_sec, TranscriptSegment.id)
+                .all()
             )
             bullets = (
                 db.query(BulletEvent)
@@ -53,7 +46,11 @@ def run_pipeline(training_id: int) -> None:
                 if live_type_en
                 else []
             )
-            fb = feedback.generate_feedback(t, transcript, bullets, rules)
+            segments = [
+                {"start": s.start_sec, "end": s.end_sec, "text": s.text}
+                for s in segs
+            ]
+            fb = feedback.generate_feedback(t, segments, bullets, rules)
             db.add(
                 Feedback(
                     training_id=training_id,
