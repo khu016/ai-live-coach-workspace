@@ -8,6 +8,10 @@ __pycache__/
 data/
 .DS_Store
 
+# 前端（React）
+frontend/node_modules/
+frontend/dist/
+
 # 内容库随后端发布，纳入版本管理；其余 data/ 均为运行时数据，仍忽略
 !backend/app/data/
 backend/app/data/*

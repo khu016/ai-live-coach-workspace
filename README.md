@@ -65,6 +65,23 @@ TENCENT_ASR_SECRET_KEY=<腾讯云 SecretKey>
 ```
 填好后重启服务即可跑真实模型冒烟。未填 Key 时相关流程会如实标注/报错，不冒充真实效果。
 
+## 前端（React）
+
+独立于后端验收页的正式 React 前端，位于 `frontend/`。当前阶段全部使用本地模拟数据（`src/data/mock.ts`），不连接真实接口；代码结构预留了后续接入 `/api/v1` 的边界。
+
+技术栈：React + Vite + TypeScript + React Router + Lucide React + 普通 CSS（设计变量见 `src/styles/index.css`）。
+
+```bash
+cd AI主播陪练开发/frontend
+npm install
+npm run dev        # http://localhost:5173
+npm run typecheck  # 类型检查
+npm run build      # 类型检查 + 生产构建（dist/）
+npm run preview    # 预览生产构建
+```
+
+页面路由：`/login` 登录 · `/` 首页 · `/tutorials` 教程中心 · `/practice/new` 创建练习与设备检测 · `/practice/live` 完整模拟直播 · `/practice/focus` 难点练习 · `/reports/:id` 训练报告 · `/practice/:id/compare` 重练对比 · `/growth` 成长记录 · `/recordings` 录像管理 · `/profile` 个人中心。
+
 ## 配置边界
 - 本项目只用自己目录内的 `.env` 和 API Key；不从外层工具包或其他 Agent 项目隐式读取。
 - `.env`、`.venv`、`data/`、`__pycache__` 均已 gitignore，不提交密钥与用户数据。
@@ -77,6 +94,7 @@ AI主播陪练开发/
 ├── backend/
 │   ├── app/           # FastAPI：api/ core/ models/ schemas/ services/ static/
 │   └── tests/         # pytest mock 测试
+├── frontend/          # React + Vite + TS 正式前端（本地模拟数据）
 ├── data/              # SQLite 数据库与录像（gitignore）
 └── docs/              # PRD、阶段文档、证据、项目状态
 ```
