@@ -45,6 +45,20 @@ class Settings:
         self.bullet_adversarial_max_sec = float(
             os.getenv("BULLET_ADVERSARIAL_MAX_SEC", "40")
         )
+        # 首条刁难弹幕：训练开始后约 15–20 秒内出现
+        self.bullet_adversarial_first_min_sec = float(
+            os.getenv("BULLET_ADVERSARIAL_FIRST_MIN_SEC", "15")
+        )
+        self.bullet_adversarial_first_max_sec = float(
+            os.getenv("BULLET_ADVERSARIAL_FIRST_MAX_SEC", "20")
+        )
+        # 首条环境弹幕：训练开始后 8–12 秒内出现
+        self.bullet_ambient_first_min_sec = float(
+            os.getenv("BULLET_AMBIENT_FIRST_MIN_SEC", "8")
+        )
+        self.bullet_ambient_first_max_sec = float(
+            os.getenv("BULLET_AMBIENT_FIRST_MAX_SEC", "12")
+        )
         # 语音驱动弹幕的最小间隔：已并入统一调度，直接对齐 BULLET_INTERVAL_MIN_SEC
         # （旧 BULLET_MIN_INTERVAL_SEC 已废弃不再读取，保留该属性供旧代码引用）
         self.bullet_min_interval_sec = self.bullet_interval_min_sec

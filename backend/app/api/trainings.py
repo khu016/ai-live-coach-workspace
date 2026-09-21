@@ -65,6 +65,13 @@ def _bullet_event(training_id: int, b: BulletIn, lib) -> BulletEvent:
     else:
         meta = None
         scenario_id = None
+    # 旧客户端带回的弹幕也补齐分类/评分字段，保证新训练记录不再为空
+    if sc is not None and sc.get("sample_type") == "adversarial":
+        bullet_category = "adversarial"
+    elif b.kind == "fixed_question":
+        bullet_category = "must_cover"
+    else:
+        bullet_category = "related"
     return BulletEvent(
         training_id=training_id,
         kind=b.kind,
@@ -73,6 +80,11 @@ def _bullet_event(training_id: int, b: BulletIn, lib) -> BulletEvent:
         source="client",
         scenario_id=scenario_id,
         meta=meta,
+        bullet_category=bullet_category,
+        requires_response=True,
+        scorable=True,
+        difficulty=sc.get("difficulty") if sc is not None else b.difficulty,
+        display_at=b.at_sec,
     )
 
 

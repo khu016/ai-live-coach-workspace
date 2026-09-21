@@ -40,7 +40,7 @@ def save_bullet(training_id: int, draft) -> dict:
             kind="dynamic",
             text=draft.text,
             at_sec=draft.at_sec,
-            source=_source_for(draft.status),
+            source=_source_for(draft),
             scenario_id=draft.scenario_id,
             trigger_type=draft.trigger_type,
             trigger_segment_id=draft.trigger_segment_id,
@@ -60,10 +60,12 @@ def save_bullet(training_id: int, draft) -> dict:
         db.close()
 
 
-def _source_for(status: str) -> str:
-    if status == "fallback":
-        return "fallback"
-    return "dynamic"
+def _source_for(draft) -> str:
+    """弹幕来源：优先用分类（更有信息量），兜底用状态。"""
+    cat = getattr(draft, "bullet_category", None)
+    if cat:
+        return cat
+    return "fallback" if getattr(draft, "status", None) == "fallback" else "dynamic"
 
 
 def event_to_message(event) -> dict:

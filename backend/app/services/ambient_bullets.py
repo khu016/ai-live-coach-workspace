@@ -2,10 +2,16 @@
 
 - 环境弹幕（无关/路人/直播间噪声）来自内容库 ``ambient_bullets.jsonl``，不依赖
   实时转写，由定时器独立产生；同一场练习不重复显示同一条。
-- 刁难弹幕来自场景卡的 ``adversarial`` 样本，每 20–40 秒最多一条。
+- 刁难弹幕来自场景卡的 ``adversarial`` 样本，首条约 15–20 秒出现，之后每 20–40
+  秒一条，不被其他弹幕无限延后。
 - ``BulletScheduler`` 统一协调语音驱动弹幕（必考/相关/冷场）与环境/刁难弹幕，
-  共享一个展示时钟，避免环境定时与语音触发同时各发一条；相关/必考优先，环境
-  弹幕在其后按 3–6 秒间隔插入；关键发言后允许最多 ``burst_max`` 条短组合。
+  共享一个展示时钟，避免环境定时与语音触发同时各发一条。
+
+调度节奏：
+- 全局展示间隔 3–6 秒（最小 3 秒），所有类别共享。
+- 环境弹幕独立节奏：首条 8–12 秒，之后每 3–6 秒一条，不被语音弹幕重置延后。
+- 刁难弹幕独立节奏：首条 15–20 秒，之后每 20–40 秒一条，优先于冷场/环境。
+- 冷场弹幕每次连续沉默最多一次（由 DynamicBulletEngine 内部去重）。
 
 随机数可注入（固定种子），保证自动化测试可复现。
 """
@@ -122,9 +128,17 @@ class BulletScheduler:
         self.ambient = AmbientBulletEngine(training, rng=self.rng)
         # 共享展示时钟：语音触发与环境定时都用它，避免重复发射
         self.last_display_at: Optional[float] = None
-        self.next_ambient_at: Optional[float] = None
-        # 刁难弹幕独立节奏：首条最早在 min 秒后，之后每隔 20–40 秒最多一条
-        self.next_adversarial_at: float = settings.bullet_adversarial_min_sec
+        # 环境弹幕独立节奏：首条 8–12 秒，之后每 3–6 秒；不被语音弹幕重置延后
+        self.next_ambient_at: float = self.rng.uniform(
+            settings.bullet_ambient_first_min_sec,
+            settings.bullet_ambient_first_max_sec,
+        )
+        self.last_ambient_at: Optional[float] = None
+        # 刁难弹幕独立节奏：首条 15–20 秒，之后每 20–40 秒
+        self.next_adversarial_at: float = self.rng.uniform(
+            settings.bullet_adversarial_first_min_sec,
+            settings.bullet_adversarial_first_max_sec,
+        )
         # 关键发言后的短弹幕组合剩余条数
         self.burst_remaining = 0
 
@@ -141,6 +155,9 @@ class BulletScheduler:
             settings.bullet_interval_min_sec, settings.bullet_interval_max_sec
         )
 
+    def _ambient_due(self, now_sec: float) -> bool:
+        return now_sec >= self.next_ambient_at
+
     def _adversarial_due(self, now_sec: float) -> bool:
         return now_sec >= self.next_adversarial_at
 
@@ -150,17 +167,17 @@ class BulletScheduler:
         self.dynamic.last_bullet_at = now_sec
         cat = draft.bullet_category
         if cat in ("related", "must_cover"):
-            # 相关/必考优先：之后推迟环境弹幕，并允许短弹幕组合
+            # 相关/必考优先：仅允许短弹幕组合，不重置环境弹幕节奏（防挤占）
             self.burst_remaining = settings.bullet_burst_max - 1
-            self.next_ambient_at = now_sec + self._random_interval()
         elif cat == "adversarial":
             self.next_adversarial_at = now_sec + self.rng.uniform(
                 settings.bullet_adversarial_min_sec,
                 settings.bullet_adversarial_max_sec,
             )
+        elif cat in ("unrelated", "passerby", "room_noise"):
+            self.last_ambient_at = now_sec
             self.next_ambient_at = now_sec + self._random_interval()
-        else:
-            self.next_ambient_at = now_sec + self._random_interval()
+        # cold_start / fallback：不改变环境与刁难节奏
 
     # ---- 对外接口 ----
 
@@ -173,26 +190,22 @@ class BulletScheduler:
         return draft
 
     def on_tick(self, now_sec: float) -> Optional[BulletDraft]:
-        """定时回调：冷场激活 > 刁难 > 环境弹幕。"""
+        """定时回调：刁难 > 冷场激活 > 环境弹幕（刁难优先，防饿死）。"""
         if not self._can_display(now_sec):
             return None
-        # 冷场激活优先（主播长时间无有效发言时提醒继续）
-        draft = self.dynamic.on_tick(now_sec)
-        if draft is not None:
-            self._mark(draft, now_sec)
-            return draft
-        # 刁难弹幕：20–40 秒最多一条
+        # 刁难弹幕优先，避免被冷场/环境持续挤占
         if self._adversarial_due(now_sec):
             draft = self.ambient.pick_adversarial()
             if draft is not None:
                 self._mark(draft, now_sec)
                 return draft
-        # 环境弹幕：按 3–6 秒门控（关键发言后的 burst 期间可提前到最小间隔）
-        if (
-            self.burst_remaining > 0
-            or self.next_ambient_at is None
-            or now_sec >= self.next_ambient_at
-        ):
+        # 冷场激活（同一沉默期最多一次，由 DynamicBulletEngine 内部去重）
+        draft = self.dynamic.on_tick(now_sec)
+        if draft is not None:
+            self._mark(draft, now_sec)
+            return draft
+        # 环境弹幕：按独立节奏（burst 期间可提前到最小间隔）
+        if self.burst_remaining > 0 or self._ambient_due(now_sec):
             draft = self.ambient.pick_ambient(
                 avoid_category=self.ambient._last_ambient_category
             )

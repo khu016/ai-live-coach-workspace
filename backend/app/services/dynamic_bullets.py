@@ -118,6 +118,8 @@ class DynamicBulletEngine:
         self.last_segment_end: float = 0.0
         self._cold_start_count = 0
         self._last_was_must_cover = False
+        # 同一段连续沉默期间冷场弹幕最多一次；主播重新说话后重置
+        self._cold_start_emitted = False
 
     @property
     def live_type_en(self):
@@ -149,6 +151,8 @@ class DynamicBulletEngine:
         self.recent_segments.append(segment)
         self.recent_segments = self.recent_segments[-RECENT_SEGMENTS_LIMIT:]
         self.last_segment_end = segment.get("end_sec") or now_sec
+        # 主播重新说话：进入新的沉默区间前，重置冷场已触发标记
+        self._cold_start_emitted = False
         decision = decide_bullet(self._state(now_sec, True), now_sec)
         if decision is None:
             return None
@@ -157,10 +161,18 @@ class DynamicBulletEngine:
         return draft
 
     def on_tick(self, now_sec: float) -> Optional[BulletDraft]:
-        """定时回调（冷场检测）。无新片段时不走 LLM，只在冷场时触发。"""
+        """定时回调（冷场检测）。无新片段时不走 LLM，只在冷场时触发。
+
+        同一段连续沉默期间冷场弹幕最多出现一次；主播重新说话后再进入新的
+        沉默区间，才能再次触发冷场弹幕。
+        """
         decision = decide_bullet(self._state(now_sec, False), now_sec)
         if decision is None:
             return None
+        if decision["source"] == "cold_start":
+            if self._cold_start_emitted:
+                return None
+            self._cold_start_emitted = True
         draft = self._generate(decision["source"], decision["scenario_id"], now_sec)
         self._record(draft, now_sec)
         return draft

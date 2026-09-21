@@ -206,6 +206,32 @@ def test_engine_on_tick_no_trigger_before_cold_start():
     assert engine.on_tick(now_sec=5.0) is None
 
 
+def test_engine_cold_start_once_per_silence():
+    """同一段连续沉默期间冷场弹幕最多一次。"""
+    engine = DynamicBulletEngine(make_training())
+    engine.last_segment_end = 0.0
+    d1 = engine.on_tick(now_sec=20.0)
+    assert d1 is not None
+    assert d1.trigger_type == "冷场激活"
+    # 同一段沉默继续，不再重复触发
+    assert engine.on_tick(now_sec=24.0) is None
+    assert engine.on_tick(now_sec=28.0) is None
+    assert engine.on_tick(now_sec=32.0) is None
+
+
+def test_engine_cold_start_again_after_respeaking():
+    """主播恢复说话后再次沉默，可触发新的冷场弹幕。"""
+    engine = DynamicBulletEngine(make_training())
+    engine.last_segment_end = 0.0
+    assert engine.on_tick(now_sec=20.0) is not None  # 第一次冷场
+    # 主播重新说话
+    engine.on_final_segment(seg(1, start=20.0, end=22.0), now_sec=22.0)
+    # 再次沉默超过 15 秒 → 新的冷场
+    d = engine.on_tick(now_sec=40.0)
+    assert d is not None
+    assert d.trigger_type == "冷场激活"
+
+
 def test_engine_llm_duplicate_rejected(monkeypatch):
     engine = DynamicBulletEngine(
         make_training(), triggered_scenario_ids=MUST_IDS

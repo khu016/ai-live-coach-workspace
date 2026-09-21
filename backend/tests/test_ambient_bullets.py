@@ -76,11 +76,31 @@ def test_ambient_missing_file_raises(monkeypatch):
 
 def test_ambient_appears_without_transcript():
     sched = BulletScheduler(make_training(), rng=random.Random(1))
-    d = sched.on_tick(3.0)
+    # 首条环境弹幕在 8–12 秒内出现（不依赖转写）
+    d = None
+    for sec in range(0, 13):
+        d = sched.on_tick(float(sec))
+        if d is not None:
+            break
     assert d is not None
     assert d.bullet_category in ("unrelated", "passerby", "room_noise")
     assert d.scorable is False
     assert d.requires_response is False
+
+
+def test_first_ambient_within_8_to_12_seconds():
+    sched = BulletScheduler(make_training(), rng=random.Random(2))
+    # 8 秒前不应出现环境弹幕
+    for sec in range(0, 8):
+        assert sched.on_tick(float(sec)) is None
+    # 12 秒内至少出现一条环境弹幕
+    d = None
+    for sec in range(8, 13):
+        d = sched.on_tick(float(sec))
+        if d is not None:
+            break
+    assert d is not None
+    assert d.bullet_category in ("unrelated", "passerby", "room_noise")
 
 
 def test_no_duplicate_ambient_in_session():
@@ -108,11 +128,14 @@ def test_no_long_consecutive_same_category():
 
 def test_global_interval_within_config():
     sched = BulletScheduler(make_training(), rng=random.Random(4))
-    first = sched.on_tick(1.0)
-    assert first is not None
-    first_at = 1.0
+    first_at = None
+    for sec in range(0, 13):
+        if sched.on_tick(float(sec)) is not None:
+            first_at = float(sec)
+            break
+    assert first_at is not None
     second_at = None
-    for sec in range(2, 20):
+    for sec in range(int(first_at) + 1, 30):
         if sched.on_tick(float(sec)) is not None:
             second_at = float(sec)
             break
@@ -140,6 +163,20 @@ def test_adversarial_spacing():
     assert d.scorable is True
     assert d.requires_response is True
     gap = sched.next_adversarial_at - 1.0
+    assert settings.bullet_adversarial_min_sec <= gap <= settings.bullet_adversarial_max_sec
+
+
+def test_adversarial_first_appears_and_not_starved():
+    sched = BulletScheduler(make_training(), rng=random.Random(12))
+    seen_at = None
+    for sec in range(0, 26):
+        d = sched.on_tick(float(sec))
+        if d is not None and d.bullet_category == "adversarial":
+            seen_at = float(sec)
+            break
+    assert seen_at is not None, "刁难弹幕应在 25 秒内出现（不被冷场/环境挤占）"
+    assert seen_at >= 14, "首条刁难不应过早出现"
+    gap = sched.next_adversarial_at - seen_at
     assert settings.bullet_adversarial_min_sec <= gap <= settings.bullet_adversarial_max_sec
 
 
@@ -184,7 +221,20 @@ def test_save_bullet_persists_attributes(client):
     assert b.scorable is False
     assert b.requires_response is False
     assert b.display_at == 3.0
+    # source 也应有信息量（不再是笼统的 dynamic）
+    assert b.source == "unrelated"
     db.close()
+
+
+def test_all_three_ambient_categories_generated():
+    amb = AmbientBulletEngine(make_training(), rng=random.Random(11))
+    cats = set()
+    for _ in range(30):
+        d = amb.pick_ambient()
+        if d is None:
+            break
+        cats.add(d.bullet_category)
+    assert cats == {"unrelated", "passerby", "room_noise"}
 
 
 # ---- 评分过滤 ----

@@ -40,6 +40,8 @@
   .warn { color:#f5a623; }
   .status { font-size:14px; margin:8px 0; }
   .dot { font-size:12px; }
+  .debug-toggle { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--dim); margin-left:12px; cursor:pointer; user-select:none; }
+  .debug-toggle input { width:auto; margin:0; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -79,7 +81,9 @@
     </div>
     <div id="asr-note" class="hint warn" hidden></div>
     <video id="preview" autoplay muted playsinline></video>
-    <div class="status">已练习 <span id="elapsed">0</span> 秒</div>
+    <div class="status">已练习 <span id="elapsed">0</span> 秒
+      <label class="debug-toggle"><input type="checkbox" id="f-debug-tags" onchange="toggleDebugTags()"> 显示调试标签</label>
+    </div>
     <div class="cols">
       <div>
         <div class="hint">实时转写</div>
@@ -124,6 +128,20 @@ let audioCtx = null, workletNode = null, ws = null;
 let finalSegments = [];
 let currentPartial = '';
 let practiceStart = 0, timerId = null;
+let bulletsData = [];
+let debugTags = false;
+
+// 调试标签（仅前端显示，不改变生成/调度/评分/保存）
+const DEBUG_TAG_LABELS = {
+  must_cover: '必考问题',
+  related: 'AI 动态弹幕',
+  adversarial: '刁难弹幕',
+  unrelated: '无关弹幕',
+  passerby: '路人弹幕',
+  room_noise: '直播间噪声',
+  cold_start: '冷场提醒',
+  fallback: '兜底',
+};
 
 function showView(name) {
   ['create','practice','feedback','compare'].forEach(v =>
@@ -176,6 +194,7 @@ async function startPractice() {
   document.getElementById('bullets').innerHTML = '';
   document.getElementById('transcript').innerHTML = '<div class="hint">说话后这里会显示文字…</div>';
   document.getElementById('elapsed').textContent = '0';
+  resetDebugTags();
   showView('practice');
   practiceStart = Date.now();
   timerId = setInterval(tick, 500);
@@ -292,7 +311,7 @@ function renderTranscript() {
 }
 
 function addBullet(b) {
-  // 内部分类/评分标签只进调试控制台，不在模拟直播页展示
+  // 内部分类/评分信息只进调试控制台，默认不在模拟直播页展示
   if (b.bullet_category || b.trigger_type || b.status === 'fallback') {
     console.debug('[bullet]', {
       text: b.text,
@@ -304,12 +323,32 @@ function addBullet(b) {
       trigger_reason: b.trigger_reason,
     });
   }
+  bulletsData.push(b);
+  renderBullets();
+}
+
+function toggleDebugTags() {
+  debugTags = document.getElementById('f-debug-tags').checked;
+  renderBullets();
+}
+
+function resetDebugTags() {
+  debugTags = false;
+  bulletsData = [];
+  const cb = document.getElementById('f-debug-tags');
+  if (cb) cb.checked = false;
+}
+
+function renderBullets() {
   const el = document.getElementById('bullets');
-  const div = document.createElement('div');
-  div.className = 'bullet';
-  const sec = Math.floor(b.at_sec != null ? b.at_sec : (Date.now()-practiceStart)/1000);
-  div.innerHTML = '<span class="t">'+sec+'s</span>'+escapeHtml(b.text);
-  el.appendChild(div);
+  let html = '';
+  for (const b of bulletsData) {
+    const sec = Math.floor(b.at_sec != null ? b.at_sec : (Date.now()-practiceStart)/1000);
+    const label = debugTags ? (DEBUG_TAG_LABELS[b.bullet_category] || b.trigger_type || '') : '';
+    const tag = label ? '<span class="tag">'+escapeHtml(label)+'</span>' : '';
+    html += '<div class="bullet"><span class="t">'+sec+'s</span>'+tag+escapeHtml(b.text)+'</div>';
+  }
+  el.innerHTML = html || '';
   el.scrollTop = 99999;
 }
 
@@ -408,6 +447,7 @@ function side(title, s) {
 function backToCreate() {
   stopMedia(); clearInterval(timerId);
   if (ws) { try { ws.close(); } catch(e){} }
+  resetDebugTags();
   showView('create');
 }
 
