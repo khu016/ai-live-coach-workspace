@@ -2,13 +2,13 @@
 
 AI 主播陪练 Agent 的独立项目目录。项目文件路径均以本目录为基准，不以外层工具包根目录为基准。
 
-**当前阶段**：阶段 2 后端 MVP（第二阶段·实时语音转写驱动动态弹幕）已完成；必考场景轮换与穿插规则已实现，D2/D3 已定线。
+**当前阶段**：阶段 2 后端 MVP（第二阶段·实时语音转写驱动动态弹幕）已完成；必考轮换、环境弹幕、统一弹幕调度与评分过滤已实现，D2/D3 已定线。
 
 ## 产品一句话
 个人主播和直播机构在开播前，用摄像头和麦克风进入模拟直播间练习表达与互动（预设关键问题 + 动态 AI 弹幕），练后得到带时间点证据的反馈，并能立即重练、对比前后进步。AI 不自动判定能否上播，上播资格由带教老师人工判断。
 
 ## 阅读入口
-- [PRD v1.2](docs/PRD/AI主播陪练_PRD_v1.2.md)：需求对齐版（唯一权威版本；v1.1/v0.1 保留作历史）。
+- [PRD v1.3](docs/PRD/AI主播陪练_PRD_v1.3.md)：需求对齐版（唯一权威版本；v1.2/v1.1/v0.1 保留作历史）。
 - [项目状态](docs/项目状态.md)：决策台账、待确认问题与阶段历史。
 - [PRD 补全清单](docs/阶段文档/PRD补全清单.md)：阶段 0 体检产出（已关闭）。
 - [技术适配声明](docs/阶段文档/第一阶段技术适配声明.md)：阶段 1 产出（已确认）。
@@ -36,14 +36,16 @@ PYTHONPATH=backend uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 ### 运行测试
 ```bash
 cd AI主播陪练开发
-uv run pytest      # 67 项 mock 测试
+uv run pytest      # 95 项 mock 测试
 ```
 
 ### 内容库
 弹幕与反馈由内容库驱动。内容库文件位于 `backend/app/data/content_library/`
-（`scenario_cards.jsonl` 60 张场景卡、`teaching_rules.jsonl` 20 张规则卡、
-`source_registry.json`、`manifest.json`），随后端发布，不依赖外部绝对路径。
-加载服务见 `backend/app/services/content_library.py`（内存索引筛选，无向量检索）。
+（`scenario_cards.jsonl` 84 张场景卡（含 30 张刁难）、`teaching_rules.jsonl` 20 张规则卡、
+`ambient_bullets.jsonl` 90 张环境弹幕（无关/路人/噪声各 30）、`source_registry.json`、
+`manifest.json`），随后端发布，不依赖外部绝对路径。
+加载服务见 `backend/app/services/content_library.py`（内存索引筛选，无向量检索）；
+环境弹幕与统一调度见 `backend/app/services/ambient_bullets.py`。
 
 ### 接入真实模型（真实验收前）
 在项目根目录建 `.env`（已 gitignore，可从 `.env.example` 复制），填：

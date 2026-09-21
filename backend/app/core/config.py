@@ -30,10 +30,24 @@ class Settings:
         # 讯飞录音文件转写（暂不启用，字段保留备以后兑底）
         self.asr_app_id = os.getenv("ASR_APP_ID", "")
         self.asr_secret_key = os.getenv("ASR_SECRET_KEY", "")
-        # 动态弹幕参数
-        self.bullet_min_interval_sec = float(
-            os.getenv("BULLET_MIN_INTERVAL_SEC", "5")
+        # 动态弹幕参数（旧 BULLET_MIN_INTERVAL_SEC 保留兼容，默认对齐新间隔下限）
+        self.bullet_density_mode = os.getenv("BULLET_DENSITY_MODE", "normal")
+        self.bullet_interval_min_sec = float(
+            os.getenv("BULLET_INTERVAL_MIN_SEC", "3")
         )
+        self.bullet_interval_max_sec = float(
+            os.getenv("BULLET_INTERVAL_MAX_SEC", "6")
+        )
+        self.bullet_burst_max = int(os.getenv("BULLET_BURST_MAX", "3"))
+        self.bullet_adversarial_min_sec = float(
+            os.getenv("BULLET_ADVERSARIAL_MIN_SEC", "20")
+        )
+        self.bullet_adversarial_max_sec = float(
+            os.getenv("BULLET_ADVERSARIAL_MAX_SEC", "40")
+        )
+        # 语音驱动弹幕的最小间隔：已并入统一调度，直接对齐 BULLET_INTERVAL_MIN_SEC
+        # （旧 BULLET_MIN_INTERVAL_SEC 已废弃不再读取，保留该属性供旧代码引用）
+        self.bullet_min_interval_sec = self.bullet_interval_min_sec
         self.bullet_cold_start_sec = float(os.getenv("BULLET_COLD_START_SEC", "15"))
         self.bullet_generate_timeout_sec = float(
             os.getenv("BULLET_GENERATE_TIMEOUT_SEC", "8")

@@ -39,6 +39,12 @@ class BulletDraft:
     scenario_id: Optional[str] = None
     status: str = "shown"
     at_sec: Optional[float] = None
+    # 弹幕属性（评分与展示过滤用）
+    bullet_category: Optional[str] = None  # related/must_cover/adversarial/unrelated/passerby/room_noise/cold_start
+    requires_response: bool = False
+    scorable: bool = False
+    difficulty: int = 0
+    meta: Optional[dict] = None
 
 
 def decide_bullet(
@@ -175,11 +181,23 @@ class DynamicBulletEngine:
             trigger_reason=f"距上次发言超过 {settings.bullet_cold_start_sec} 秒",
             status="shown",
             at_sec=now_sec,
+            bullet_category="cold_start",
+            requires_response=False,
+            scorable=False,
         )
 
     def _preset_must_cover(self, scenario_id: Optional[str], now_sec: float) -> BulletDraft:
         sc = self.lib.scenarios_by_id.get(scenario_id) if scenario_id else None
         text = sc["reference_utterance"] if sc else "（预设关键问题）"
+        meta = None
+        if sc is not None:
+            meta = {
+                "viewer_intent": sc.get("viewer_intent"),
+                "must_cover": sc.get("must_cover") or [],
+                "failure_signals": sc.get("failure_signals") or [],
+                "source_refs": sc.get("source_refs") or [],
+                "sample_type": sc.get("sample_type"),
+            }
         return BulletDraft(
             text=text,
             trigger_type="预设必考",
@@ -187,6 +205,11 @@ class DynamicBulletEngine:
             scenario_id=scenario_id,
             status="shown",
             at_sec=now_sec,
+            bullet_category="must_cover",
+            requires_response=True,
+            scorable=True,
+            difficulty=int(sc.get("difficulty", 0)) if sc else 0,
+            meta=meta,
         )
 
     def _llm_generate(self, now_sec: float) -> BulletDraft:
@@ -222,6 +245,9 @@ class DynamicBulletEngine:
                 trigger_reason=str(data.get("reason") or ""),
                 status="shown",
                 at_sec=now_sec,
+                bullet_category="related",
+                requires_response=True,
+                scorable=True,
             )
         except Exception:  # noqa: BLE001
             return self._fallback(now_sec, trigger_segment.get("id"))
@@ -239,6 +265,9 @@ class DynamicBulletEngine:
             trigger_reason="动态弹幕生成失败，使用预设弹幕降级",
             status="fallback",
             at_sec=now_sec,
+            bullet_category="fallback",
+            requires_response=False,
+            scorable=False,
         )
 
     def _record(self, draft: BulletDraft, now_sec: float) -> None:

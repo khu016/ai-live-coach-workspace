@@ -292,13 +292,23 @@ function renderTranscript() {
 }
 
 function addBullet(b) {
+  // 内部分类/评分标签只进调试控制台，不在模拟直播页展示
+  if (b.bullet_category || b.trigger_type || b.status === 'fallback') {
+    console.debug('[bullet]', {
+      text: b.text,
+      trigger_type: b.trigger_type,
+      bullet_category: b.bullet_category,
+      scorable: b.scorable,
+      requires_response: b.requires_response,
+      scenario_id: b.scenario_id,
+      trigger_reason: b.trigger_reason,
+    });
+  }
   const el = document.getElementById('bullets');
   const div = document.createElement('div');
   div.className = 'bullet';
   const sec = Math.floor(b.at_sec != null ? b.at_sec : (Date.now()-practiceStart)/1000);
-  const tag = b.trigger_type ? '<span class="tag">'+escapeHtml(b.trigger_type)+'</span>' : '';
-  const fallback = b.status === 'fallback' ? '<span class="tag">预设兜底</span>' : '';
-  div.innerHTML = '<span class="t">'+sec+'s</span>'+tag+fallback+escapeHtml(b.text);
+  div.innerHTML = '<span class="t">'+sec+'s</span>'+escapeHtml(b.text);
   el.appendChild(div);
   el.scrollTop = 99999;
 }
@@ -355,6 +365,7 @@ function renderFeedback(fb) {
       '<span class="dim">'+escapeHtml(it.dimension)+'</span> '+(isTop?'<span class="hint">★ 优先改进</span>':'')+
       '<div class="t hint">时间 '+fmt(it.start_sec)+'–'+fmt(it.end_sec)+' · <a href="#" onclick="jump('+it.start_sec+');return false;">跳到片段</a></div>'+
       (it.evidence ? '<blockquote>'+escapeHtml(it.evidence)+'</blockquote>' : '')+
+      (it.trigger_bullet ? '<div><b>触发弹幕：</b>'+escapeHtml(it.trigger_bullet)+'</div>' : '')+
       '<div><b>问题：</b>'+escapeHtml(it.problem)+'</div>'+
       (it.suggestion ? '<div><b>建议：</b>'+escapeHtml(it.suggestion)+'</div>' : '')+
       (it.retrain_target ? '<div><b>可重练：</b>'+escapeHtml(it.retrain_target)+'</div>' : '')+

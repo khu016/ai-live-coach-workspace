@@ -99,6 +99,41 @@ def _sanitize_refs(fb: FeedbackOut, lib) -> FeedbackOut:
     return fb
 
 
+def _bget(b, key, default=None):
+    val = getattr(b, key, None)
+    if val is None and hasattr(b, "get"):
+        val = b.get(key)
+    return default if val is None else val
+
+
+def _filter_non_scorable_evidence(fb: FeedbackOut, bullets, lib) -> FeedbackOut:
+    """服务端校验：非评分/非必回弹幕不能作为负面反馈证据（不只依赖模型遵守）。
+
+    1. ``trigger_bullet`` 命中"可评分=否"或"需回应=否"的弹幕 → 剔除该条 issue。
+    2. 引用刁难场景（sample_type=adversarial）但缺少规则依据或可观察证据 → 剔除。
+    """
+    non_evidence_texts = set()
+    for b in bullets or []:
+        text = (_bget(b, "text") or "").strip()
+        scorable = _bget(b, "scorable", True)
+        requires = _bget(b, "requires_response", True)
+        if text and (scorable is False or requires is False):
+            non_evidence_texts.add(text)
+    adversarial_ids = lib.adversarial_scenario_ids
+    kept = []
+    for issue in fb.issues:
+        tb = (issue.trigger_bullet or "").strip()
+        if tb and tb in non_evidence_texts:
+            continue
+        if issue.scenario_id and issue.scenario_id in adversarial_ids:
+            if not issue.rule_ids or not issue.evidence:
+                continue
+        kept.append(issue)
+    fb.issues = kept
+    fb.top_issue_ids = [i for i in fb.top_issue_ids if i < len(kept)]
+    return fb
+
+
 def generate_feedback(training, segments, bullets=None, rules=None) -> FeedbackOut:
     """生成练后反馈。
 
@@ -121,7 +156,8 @@ def generate_feedback(training, segments, bullets=None, rules=None) -> FeedbackO
     for _ in range(3):
         text = call_chat(messages)
         try:
-            return _sanitize_refs(parse_feedback(text), lib)
+            fb = _sanitize_refs(parse_feedback(text), lib)
+            return _filter_non_scorable_evidence(fb, bullets, lib)
         except Exception as e:  # noqa: BLE001
             last_err = e
     raise RuntimeError(f"反馈解析失败（已重试）: {last_err}")

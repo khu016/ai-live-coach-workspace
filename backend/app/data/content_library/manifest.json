@@ -1,19 +1,31 @@
 {
-  "version": "1.0",
-  "created_at": "2026-09-19",
-  "scene_count": 60,
+  "version": "1.3",
+  "created_at": "2026-09-21",
+  "scene_count": 84,
   "rule_count": 20,
+  "ambient_bullet_count": 90,
   "scene_distribution_by_live_type": {
-    "ecommerce": 30,
-    "entertainment": 15,
-    "knowledge": 15
+    "ecommerce": 37,
+    "entertainment": 24,
+    "knowledge": 23
   },
   "scene_distribution_by_sample_type": {
     "regular": 30,
     "complex": 15,
     "boundary": 9,
-    "adversarial": 6
+    "adversarial": 30
   },
-  "approval_status": "draft_pending_teacher_review",
+  "ambient_distribution_by_category": {
+    "unrelated": 30,
+    "passerby": 30,
+    "room_noise": 30
+  },
+  "ambient_distribution_by_live_type": {
+    "ecommerce": 30,
+    "entertainment": 30,
+    "knowledge": 30
+  },
+  "user_review_status": "approved_for_internal_integration",
+  "teacher_review_status": "pending_teacher_review",
   "commercial_use_status": "not_cleared"
 }

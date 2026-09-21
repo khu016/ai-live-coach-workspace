@@ -2,7 +2,7 @@
 
 浏览器把麦克风 PCM（16kHz/16bit 单声道）分帧以二进制发到本端点，后端转发给
 实时 ASR 供应商；供应商返回的临时/稳定转写事件回推给浏览器，稳定片段落库，
-并交给动态弹幕引擎触发追问/质疑/普通互动/话题承接/冷场激活弹幕。
+并交给统一弹幕调度器触发必考/相关/刁难/环境弹幕。
 
 约定：
 - 浏览器 → 后端：二进制帧 = PCM 音频；文本帧 {"type":"end"} = 结束转写。
@@ -21,7 +21,7 @@ from fastapi import APIRouter, WebSocket
 from ..db import SessionLocal
 from ..models import Training
 from ..services.asr_base import get_realtime_asr
-from ..services.dynamic_bullets import DynamicBulletEngine
+from ..services.ambient_bullets import BulletScheduler
 from ..services.realtime import (
     PCM_BYTES_PER_SEC,
     event_to_message,
@@ -58,10 +58,7 @@ async def asr_ws(websocket: WebSocket, training_id: int):
             await websocket.close()
             return
 
-        engine = DynamicBulletEngine(
-            t,
-            selected_must_cover_ids=t.selected_must_cover_scenario_ids,
-        )
+        scheduler = BulletScheduler(t)
         total_audio_bytes = 0
         stop = asyncio.Event()
 
@@ -87,7 +84,7 @@ async def asr_ws(websocket: WebSocket, training_id: int):
                             "text": ev.text,
                         }
                         now_sec = ev.end_sec if ev.end_sec is not None else 0.0
-                        draft = engine.on_final_segment(seg_dict, now_sec)
+                        draft = scheduler.on_final_segment(seg_dict, now_sec)
                         if draft is not None:
                             await _push(save_bullet(training_id, draft))
                     else:
@@ -102,7 +99,7 @@ async def asr_ws(websocket: WebSocket, training_id: int):
                 while not stop.is_set():
                     await asyncio.sleep(1.0)
                     now_sec = total_audio_bytes / PCM_BYTES_PER_SEC
-                    draft = engine.on_tick(now_sec)
+                    draft = scheduler.on_tick(now_sec)
                     if draft is not None:
                         await _push(save_bullet(training_id, draft))
             except asyncio.CancelledError:

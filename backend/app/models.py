@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import JSON, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -84,6 +84,12 @@ class BulletEvent(Base):
     trigger_reason = Column(String(500), nullable=True)
     status = Column(String(32), nullable=True)
     response_segment_ids = Column(JSON, nullable=True)
+    # 弹幕属性（评分与展示过滤用）：分类 / 是否需要回应 / 是否参与评分 / 难度 / 展示时间
+    bullet_category = Column(String(32), nullable=True)
+    requires_response = Column(Boolean, nullable=True)
+    scorable = Column(Boolean, nullable=True)
+    difficulty = Column(Integer, nullable=True)
+    display_at = Column(Float, nullable=True)
     created_at = Column(DateTime, default=now)
 
 

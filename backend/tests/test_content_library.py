@@ -1,24 +1,36 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from app.services import content_library
 from app.services.content_library import ContentLibraryError
 
+MANIFEST_PATH = content_library.DEFAULT_DATA_DIR / "manifest.json"
+
+
+def _manifest():
+    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+
 
 def test_load_counts():
     lib = content_library.reload_library()
-    assert len(lib.scenarios) == 60
-    assert len(lib.rules) == 20
+    m = _manifest()
+    # 优先读 manifest，避免每次扩充内容都因旧常量失败
+    assert len(lib.scenarios) == m["scene_count"]
+    assert len(lib.rules) == m["rule_count"]
+    assert len(lib.ambient) == m["ambient_bullet_count"]
+    # 最低数量护栏
+    assert len(lib.scenarios) >= 84
+    assert len(lib.ambient) >= 90
 
 
 def test_live_type_filter():
     lib = content_library.get_library()
-    for lt, expected in [
-        ("ecommerce", 30),
-        ("entertainment", 15),
-        ("knowledge", 15),
-    ]:
+    dist = _manifest()["scene_distribution_by_live_type"]
+    for lt in ("ecommerce", "entertainment", "knowledge"):
         res = lib.select_scenarios(lt)
-        assert len(res) == expected
+        assert len(res) == dist[lt]
         assert all(s["live_type"] == lt for s in res)
 
 
@@ -54,9 +66,10 @@ def test_select_scenarios_prepends_given_must():
 
 def test_select_scenarios_no_must_by_default():
     lib = content_library.get_library()
+    dist = _manifest()["scene_distribution_by_live_type"]
     res = lib.select_scenarios("ecommerce")
     # 未传必考 ID 时不前置必考，按文件顺序返回全部场景
-    assert len(res) == 30
+    assert len(res) == dist["ecommerce"]
     assert res[0]["scenario_id"] == "EC-REG-001"
 
 

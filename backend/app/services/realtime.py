@@ -32,7 +32,7 @@ def save_segment(training_id: int, event) -> int:
 
 
 def save_bullet(training_id: int, draft) -> dict:
-    """把动态弹幕落库，返回可直接推给浏览器的消息字典。"""
+    """把弹幕落库，返回可直接推给浏览器的消息字典。"""
     db = SessionLocal()
     try:
         b = BulletEvent(
@@ -46,6 +46,12 @@ def save_bullet(training_id: int, draft) -> dict:
             trigger_segment_id=draft.trigger_segment_id,
             trigger_reason=draft.trigger_reason,
             status=draft.status,
+            bullet_category=getattr(draft, "bullet_category", None),
+            requires_response=getattr(draft, "requires_response", None),
+            scorable=getattr(draft, "scorable", None),
+            difficulty=getattr(draft, "difficulty", None),
+            display_at=draft.at_sec,
+            meta=getattr(draft, "meta", None),
         )
         db.add(b)
         db.commit()
@@ -75,10 +81,14 @@ def bullet_to_message(b) -> dict:
     return {
         "type": "bullet",
         "text": b.text,
-        "at_sec": b.at_sec,
+        "at_sec": b.display_at if b.display_at is not None else b.at_sec,
         "kind": b.kind,
         "scenario_id": b.scenario_id,
         "trigger_type": b.trigger_type,
         "trigger_reason": b.trigger_reason,
         "status": b.status,
+        "bullet_category": b.bullet_category,
+        "requires_response": b.requires_response,
+        "scorable": b.scorable,
+        "difficulty": b.difficulty,
     }

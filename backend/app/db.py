@@ -44,6 +44,11 @@ def run_migrations() -> None:
                 ("trigger_reason", "VARCHAR(500)"),
                 ("status", "VARCHAR(32)"),
                 ("response_segment_ids", "JSON"),
+                ("bullet_category", "VARCHAR(32)"),
+                ("requires_response", "BOOLEAN"),
+                ("scorable", "BOOLEAN"),
+                ("difficulty", "INTEGER"),
+                ("display_at", "FLOAT"),
             ):
                 if col not in cols:
                     conn.exec_driver_sql(

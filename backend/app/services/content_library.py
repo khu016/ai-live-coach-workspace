@@ -1,12 +1,15 @@
 """内容库读取服务。
 
-在 ``backend/app/data/content_library/`` 下加载场景卡与规则卡，
+在 ``backend/app/data/content_library/`` 下加载场景卡、规则卡与环境弹幕，
 用普通内存索引做筛选，不引入向量数据库 / RAG。
 
-- 场景卡：``scenario_cards.jsonl``（60 张）
+- 场景卡：``scenario_cards.jsonl``（84 张）
 - 规则卡：``teaching_rules.jsonl``（20 张）
+- 环境弹幕：``ambient_bullets.jsonl``（90 张：无关/路人/直播间噪声各 30）
 - 来源登记：``source_registry.json``
 - 版本信息：``manifest.json``
+
+训练场景（含必考、刁难）与环境弹幕分别管理，不互相混用。
 
 数据文件随后端发布，运行时只依赖后端包内路径（可用 ``CONTENT_LIBRARY_DIR``
 环境变量覆盖，便于测试与部署）；文件缺失或格式错误时抛出 ``ContentLibraryError``，
@@ -24,6 +27,7 @@ DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "content_li
 
 SCENARIOS_FILE = Path(os.getenv("CONTENT_LIBRARY_DIR", str(DEFAULT_DATA_DIR))) / "scenario_cards.jsonl"
 RULES_FILE = Path(os.getenv("CONTENT_LIBRARY_DIR", str(DEFAULT_DATA_DIR))) / "teaching_rules.jsonl"
+AMBIENT_BULLETS_FILE = Path(os.getenv("CONTENT_LIBRARY_DIR", str(DEFAULT_DATA_DIR))) / "ambient_bullets.jsonl"
 
 LIVE_TYPES = ("ecommerce", "entertainment", "knowledge")
 
@@ -52,6 +56,19 @@ RULE_REQUIRED_FIELDS = (
     "live_types",
     "observable_behavior",
     "pass_condition",
+    "source_refs",
+)
+
+# 环境弹幕分类（均为不要求回应、不参与评分的直播间气氛内容）
+AMBIENT_CATEGORIES = ("unrelated", "passerby", "room_noise")
+AMBIENT_REQUIRED_FIELDS = (
+    "bullet_id",
+    "bullet_category",
+    "live_types",
+    "text",
+    "requires_response",
+    "scorable",
+    "difficulty",
     "source_refs",
 )
 
@@ -109,10 +126,16 @@ class ContentLibrary:
         self.rules: List[dict] = []
         self.rules_by_id: dict = {}
         self.rules_by_live_type: dict = {}
+        self.ambient: List[dict] = []
+        self.ambient_by_id: dict = {}
+        self.ambient_by_live_type: dict = {}
 
     def load(self) -> "ContentLibrary":
         scenarios = _load_jsonl(SCENARIOS_FILE, "场景卡", SCENARIO_REQUIRED_FIELDS)
         rules = _load_jsonl(RULES_FILE, "规则卡", RULE_REQUIRED_FIELDS)
+        ambient = _load_jsonl(
+            AMBIENT_BULLETS_FILE, "环境弹幕", AMBIENT_REQUIRED_FIELDS
+        )
         for s in scenarios:
             if s["live_type"] not in LIVE_TYPES:
                 raise ContentLibraryError(
@@ -133,9 +156,37 @@ class ContentLibrary:
             self.rules_by_id[rid] = r
             for lt in r["live_types"]:
                 self.rules_by_live_type.setdefault(lt, []).append(rid)
+        for b in ambient:
+            self._validate_ambient(b)
+            bid = b["bullet_id"]
+            if bid in self.ambient_by_id:
+                raise ContentLibraryError(f"内容库格式错误：环境弹幕 ID 重复 {bid!r}")
+            self.ambient_by_id[bid] = b
+            for lt in b["live_types"]:
+                self.ambient_by_live_type.setdefault(lt, []).append(b)
         self.scenarios = scenarios
         self.rules = rules
+        self.ambient = ambient
         return self
+
+    @staticmethod
+    def _validate_ambient(b: dict) -> None:
+        cat = b.get("bullet_category")
+        if cat not in AMBIENT_CATEGORIES:
+            raise ContentLibraryError(
+                f"内容库格式错误：环境弹幕 {b.get('bullet_id')!r} 的 "
+                f"bullet_category={cat!r} 非法，必须是 {AMBIENT_CATEGORIES} 之一"
+            )
+        lts = b.get("live_types")
+        if not isinstance(lts, list) or not lts:
+            raise ContentLibraryError(
+                f"内容库格式错误：环境弹幕 {b.get('bullet_id')!r} 的 live_types 必须是非空数组"
+            )
+        for lt in lts:
+            if lt not in LIVE_TYPES:
+                raise ContentLibraryError(
+                    f"内容库格式错误：环境弹幕 {b.get('bullet_id')!r} 的 live_type={lt!r} 非法"
+                )
 
     def select_scenarios(
         self,
@@ -220,6 +271,42 @@ class ContentLibrary:
         if live_type not in LIVE_TYPES:
             raise ContentLibraryError(f"未知直播类型 {live_type!r}")
         return [self.rules_by_id[rid] for rid in self.rules_by_live_type.get(live_type, [])]
+
+    def ambient_for_live_type(
+        self, live_type: str, category: Optional[str] = None
+    ) -> List[dict]:
+        """筛选环境弹幕（无关/路人/直播间噪声）。
+
+        - ``live_type``：必填，``ecommerce / entertainment / knowledge``。
+        - ``category``：可选 ``unrelated / passerby / room_noise``；不传返回全部。
+        - 返回该直播类型下匹配的环境弹幕列表（不排序、不打乱，去重交给调用方）。
+        """
+        if live_type not in LIVE_TYPES:
+            raise ContentLibraryError(f"未知直播类型 {live_type!r}")
+        if category is not None and category not in AMBIENT_CATEGORIES:
+            raise ContentLibraryError(
+                f"未知环境弹幕分类 {category!r}，必须是 {AMBIENT_CATEGORIES} 之一"
+            )
+        return [
+            b
+            for b in self.ambient_by_live_type.get(live_type, [])
+            if category is None or b["bullet_category"] == category
+        ]
+
+    def adversarial_scenarios(self, live_type: str) -> List[dict]:
+        """返回指定直播类型的刁难场景（sample_type=adversarial）。"""
+        if live_type not in LIVE_TYPES:
+            raise ContentLibraryError(f"未知直播类型 {live_type!r}")
+        return [
+            s
+            for s in self.scenarios
+            if s["live_type"] == live_type and s["sample_type"] == "adversarial"
+        ]
+
+    @property
+    def adversarial_scenario_ids(self) -> set:
+        """全部刁难场景 ID（用于反馈评分过滤）。"""
+        return {s["scenario_id"] for s in self.scenarios if s["sample_type"] == "adversarial"}
 
 
 def _rank_by_goal(scenarios: List[dict], goal: str) -> List[dict]:

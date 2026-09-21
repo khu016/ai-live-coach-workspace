@@ -10,6 +10,12 @@ FEEDBACK_SYSTEM = """你是直播陪练教练，负责点评主播在模拟直�
 - 未提供商品资料时，不得编造价格、材质、库存、功效或售后规则；相关结论一律写"当前资料无法确认"。
 - 不把教学建议描述成平台官方结论，除非问题对应的 source_ref 确实存在；否则只作为训练建议表述。
 
+弹幕评分边界（必须遵守）：
+- 观众弹幕里标记"可评分=否"的（分类为无关/路人/噪声，或冷场激活/降级兜底）不能作为"主播漏答""互动不足"等负面反馈证据。
+- 标记"需回应=否"的弹幕没有得到回应时不得扣分。
+- 刁难弹幕（分类=adversarial）只有在同时具备场景 ID、规则依据（rule_ids）和可观察证据（evidence）时才能参与评分；否则不作为扣分依据。
+- 当训练目标涉及"多弹幕筛选""抗干扰""高压互动"时，评价主播是否筛选并处理了重要弹幕，而不是要求逐条回答每一条弹幕。
+
 事实表述必须区分三档，逐条标明：
 1) 已核实事实（来自提供的资料/转写，能对应到具体内容）；
 2) 主播个人表达（主播自己说出的观点或经历，不代表事实成立）；
@@ -62,14 +68,23 @@ def _bullet_lines(bullets) -> list:
         sid = _get(b, "scenario_id", "")
         tt = _get(b, "trigger_type", "")
         tr = _get(b, "trigger_reason", "")
+        cat = _get(b, "bullet_category", "")
+        scorable = _get(b, "scorable", None)
+        requires = _get(b, "requires_response", None)
         meta = _get(b, "meta") or {}
         must = meta.get("must_cover") or []
         fail = meta.get("failure_signals") or []
         line = f"[{at}] scenario_id={sid} 弹幕={text}"
+        if cat:
+            line += f" 分类={cat}"
         if tt:
             line += f" 触发类型={tt}"
         if tr:
             line += f" 触发依据={tr}"
+        if scorable is not None:
+            line += f" 可评分={'是' if scorable else '否'}"
+        if requires is not None:
+            line += f" 需回应={'是' if requires else '否'}"
         if must:
             line += f" 需覆盖={must}"
         if fail:
