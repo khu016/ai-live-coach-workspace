@@ -55,8 +55,9 @@ RULE_REQUIRED_FIELDS = (
     "source_refs",
 )
 
-# 预设必考场景：每个直播类型固定包含的高价值 / 高风险场景（按 live_type 硬编码）。
-# 这些场景会优先进入每次练习，保证训练覆盖"必须练到"的关键情形。
+# 预设必考场景池：每个直播类型的高价值 / 高风险场景（按 live_type 硬编码）。
+# 这是「轮换候选池」，不是每场都要全部出现的清单；每场只从中确定性选出 1–2 个
+# （见 select_must_cover），多场练习累计覆盖整个池。
 MUST_COVER_SCENARIOS = {
     "ecommerce": ["EC-REG-001", "EC-COM-001", "EC-BND-001", "EC-ADV-002"],
     "entertainment": ["EN-REG-001", "EN-COM-001", "EN-BND-001"],
@@ -145,7 +146,7 @@ class ContentLibrary:
         sample_type: Optional[str] = None,
         limit: Optional[int] = None,
         seed: Optional[int] = None,
-        include_must: bool = True,
+        must_scenario_ids: Optional[List[str]] = None,
     ) -> List[dict]:
         """按条件筛选场景。
 
@@ -154,8 +155,9 @@ class ContentLibrary:
         - ``tags``：场景标签列表，命中任一即保留。
         - ``difficulty``：难度（整数或整数列表）。
         - ``sample_type``：``regular / complex / boundary / adversarial``。
-        - ``include_must``：是否优先包含预设必考场景（默认 True；必考场景与普通
-          场景一样受 sample_type/difficulty/tags 过滤，但始终受 live_type 过滤）。
+        - ``must_scenario_ids``：本场选定的预设必考场景 ID（1–2 个），会优先进入
+          结果；不传则不前置任何必考场景。这些场景与普通场景一样受
+          sample_type/difficulty/tags 过滤，但始终受 live_type 过滤。
         - 结果按 scenario_id 去重，同一次调用不会出现重复场景。
         """
         if live_type not in LIVE_TYPES:
@@ -184,8 +186,8 @@ class ContentLibrary:
                     return False
             return True
 
-        if include_must:
-            for sid in MUST_COVER_SCENARIOS.get(live_type, []):
+        if must_scenario_ids:
+            for sid in must_scenario_ids:
                 sc = self.scenarios_by_id.get(sid)
                 if sc is not None and sc["live_type"] == live_type and matches(sc):
                     add(sid)
@@ -246,6 +248,23 @@ def _rank_by_goal(scenarios: List[dict], goal: str) -> List[dict]:
         return n
 
     return sorted(scenarios, key=score, reverse=True)
+
+
+def select_must_cover(live_type: str, seed: int) -> List[str]:
+    """从指定直播类型的必考场景池中确定性选出 1–2 个场景 ID。
+
+    - 只在 ``live_type`` 自己的必考池内轮换，不跨直播类型。
+    - 以 ``seed``（练习 ID）做确定性轮换，连续练习得到不同组合；
+      同一 seed 结果可复现。
+    - 返回 1 或 2 个场景 ID（每场至少 1 个必考、最多 2 个）。
+    """
+    pool = MUST_COVER_SCENARIOS.get(live_type, [])
+    if not pool:
+        return []
+    n = len(pool)
+    start = seed % n
+    count = 2 if (seed // n) % 2 == 0 else 1
+    return [pool[(start + i) % n] for i in range(count)]
 
 
 _lock = Lock()

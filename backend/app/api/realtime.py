@@ -58,7 +58,10 @@ async def asr_ws(websocket: WebSocket, training_id: int):
             await websocket.close()
             return
 
-        engine = DynamicBulletEngine(t)
+        engine = DynamicBulletEngine(
+            t,
+            selected_must_cover_ids=t.selected_must_cover_scenario_ids,
+        )
         total_audio_bytes = 0
         stop = asyncio.Event()
 

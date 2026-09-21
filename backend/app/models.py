@@ -22,6 +22,9 @@ class Training(Base):
     script = Column(Text, nullable=True)
     status = Column(String(32), nullable=False, default="created")
     prev_training_id = Column(Integer, nullable=True)
+    # 本场选定的必考场景 ID（1–2 个，来自本直播类型的必考池）。
+    # 新建按练习 ID 确定性轮换；重练继承原练习。持久化到库，进程重启可恢复。
+    selected_must_cover_scenario_ids = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=now)
     finished_at = Column(DateTime, nullable=True)
 

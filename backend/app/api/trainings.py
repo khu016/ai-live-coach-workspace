@@ -29,6 +29,7 @@ def _training_dict(t: Training) -> dict:
         "script": t.script,
         "status": t.status,
         "prev_training_id": t.prev_training_id,
+        "selected_must_cover_scenario_ids": t.selected_must_cover_scenario_ids or [],
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "finished_at": t.finished_at.isoformat() if t.finished_at else None,
     }
@@ -106,7 +107,20 @@ def create_training(payload: TrainingCreate, db: Session = Depends(get_db)):
     db.add(t)
     db.commit()
     db.refresh(t)
-    script = bullets_svc.build_script(t.live_type, t.goal, t.topic, seed=t.id)
+    live_type_en = content_library.LIVE_TYPE_TO_EN.get(t.live_type)
+    # 新建练习：按练习 ID 确定性轮换选出 1–2 个必考场景，持久化到训练记录。
+    t.selected_must_cover_scenario_ids = content_library.select_must_cover(
+        live_type_en, t.id
+    )
+    db.commit()
+    db.refresh(t)
+    script = bullets_svc.build_script(
+        t.live_type,
+        t.goal,
+        t.topic,
+        seed=t.id,
+        selected_must_ids=t.selected_must_cover_scenario_ids,
+    )
     return {"training": _training_dict(t), "script": script}
 
 
@@ -212,12 +226,18 @@ def retrain(training_id: int, db: Session = Depends(get_db)):
         script=t.script,
         status="created",
         prev_training_id=t.id,
+        # 重练同一问题：继承原练习的必考场景，确保前后表现可比较。
+        selected_must_cover_scenario_ids=t.selected_must_cover_scenario_ids,
     )
     db.add(new_t)
     db.commit()
     db.refresh(new_t)
     script = bullets_svc.build_script(
-        new_t.live_type, new_t.goal, new_t.topic, seed=new_t.id
+        new_t.live_type,
+        new_t.goal,
+        new_t.topic,
+        seed=new_t.id,
+        selected_must_ids=new_t.selected_must_cover_scenario_ids,
     )
     return {"training": _training_dict(new_t), "script": script}
 

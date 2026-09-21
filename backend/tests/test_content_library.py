@@ -37,10 +37,27 @@ def test_tags_filter():
     assert all("服饰" in (s.get("tags") or []) for s in res)
 
 
-def test_must_cover_scenarios_first():
+def test_select_must_cover_within_pool():
+    lib = content_library.get_library()
+    pool = content_library.MUST_COVER_SCENARIOS["ecommerce"]
+    for seed in range(8):
+        ids = content_library.select_must_cover("ecommerce", seed)
+        assert 1 <= len(ids) <= 2
+        assert all(sid in pool for sid in ids)
+
+
+def test_select_scenarios_prepends_given_must():
+    lib = content_library.get_library()
+    res = lib.select_scenarios("ecommerce", must_scenario_ids=["EC-BND-001"])
+    assert res[0]["scenario_id"] == "EC-BND-001"
+
+
+def test_select_scenarios_no_must_by_default():
     lib = content_library.get_library()
     res = lib.select_scenarios("ecommerce")
-    assert res[0]["scenario_id"] == content_library.MUST_COVER_SCENARIOS["ecommerce"][0]
+    # 未传必考 ID 时不前置必考，按文件顺序返回全部场景
+    assert len(res) == 30
+    assert res[0]["scenario_id"] == "EC-REG-001"
 
 
 def test_rules_by_live_type_and_rule_id():

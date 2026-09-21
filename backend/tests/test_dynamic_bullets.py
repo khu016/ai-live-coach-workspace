@@ -142,6 +142,52 @@ def test_engine_min_interval_suppresses(monkeypatch):
     assert second is None  # 4 - 2 = 2 < 5s 最小间隔
 
 
+def test_engine_never_two_consecutive_must_cover(monkeypatch):
+    """必考弹幕不能连续出现：第一条必考后，下一条应进入 LLM 动态弹幕分支。"""
+    engine = DynamicBulletEngine(make_training())
+    monkeypatch.setattr(
+        "app.services.dynamic_bullets.call_chat",
+        lambda messages, timeout=30, max_retries=2: '{"trigger_type":"普通互动","text":"来了来了","reason":"问候"}',
+    )
+    first = engine.on_final_segment(seg(1, end=2.0), now_sec=2.0)
+    assert first is not None
+    assert first.trigger_type == "预设必考"
+    second = engine.on_final_segment(seg(2, start=7.0, end=8.0), now_sec=8.0)
+    assert second is not None
+    assert second.trigger_type != "预设必考"
+    assert second.trigger_type == "普通互动"
+
+
+def test_engine_must_cover_resumes_after_llm(monkeypatch):
+    """必考弹幕之后进入 LLM 分支，再下一条可继续剩余必考。"""
+    engine = DynamicBulletEngine(make_training())
+    monkeypatch.setattr(
+        "app.services.dynamic_bullets.call_chat",
+        lambda messages, timeout=30, max_retries=2: '{"trigger_type":"普通互动","text":"来了来了","reason":"问候"}',
+    )
+    first = engine.on_final_segment(seg(1, end=2.0), now_sec=2.0)
+    assert first.trigger_type == "预设必考"
+    second = engine.on_final_segment(seg(2, start=7.0, end=8.0), now_sec=8.0)
+    assert second.trigger_type == "普通互动"
+    third = engine.on_final_segment(seg(3, start=14.0, end=15.0), now_sec=15.0)
+    assert third.trigger_type == "预设必考"
+
+
+def test_engine_fallback_not_consecutive_must_cover(monkeypatch):
+    """LLM 失败时降级：上一条是必考时，不得再用必考兜底（避免连续必考）。"""
+    engine = DynamicBulletEngine(make_training())
+    first = engine.on_final_segment(seg(1, end=2.0), now_sec=2.0)
+    assert first.trigger_type == "预设必考"
+
+    def boom(messages, timeout=30, max_retries=2):
+        raise RuntimeError("超时")
+
+    monkeypatch.setattr("app.services.dynamic_bullets.call_chat", boom)
+    second = engine.on_final_segment(seg(2, start=7.0, end=8.0), now_sec=8.0)
+    assert second.status == "fallback"
+    assert second.trigger_type != "预设必考"
+
+
 def test_engine_cold_start_on_tick():
     engine = DynamicBulletEngine(
         make_training(), triggered_scenario_ids=MUST_IDS

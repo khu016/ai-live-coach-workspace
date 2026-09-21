@@ -50,6 +50,9 @@ def decide_bullet(
     """确定性判定是否生成弹幕，以及用哪类来源。
 
     返回 None（不触发）或 ``{"source": "cold_start"|"must_cover"|"llm", "scenario_id": ...}``。
+
+    必考与动态穿插：只有上一条不是必考弹幕时才允许触发下一条必考（一场练习
+    最多连续 1 条必考），否则交给 LLM 生成动态弹幕。
     """
     min_interval = (
         min_interval_sec if min_interval_sec is not None else settings.bullet_min_interval_sec
@@ -67,7 +70,8 @@ def decide_bullet(
     if not state.get("has_new_segment"):
         return None
     pending = state.get("pending_must_cover") or []
-    if pending:
+    last_was_must = bool(state.get("last_was_must_cover"))
+    if pending and not last_was_must:
         return {"source": "must_cover", "scenario_id": pending[0]}
     if state.get("has_new_segment"):
         return {"source": "llm", "scenario_id": None}
@@ -87,24 +91,43 @@ def is_duplicate(text: str, history: List[dict]) -> bool:
 class DynamicBulletEngine:
     """一场练习的动态弹幕触发引擎（进程内状态，随 WebSocket 会话存续）。"""
 
-    def __init__(self, training, history_bullets=None, triggered_scenario_ids=None):
+    def __init__(
+        self,
+        training,
+        selected_must_cover_ids=None,
+        history_bullets=None,
+        triggered_scenario_ids=None,
+    ):
         self.training = training
         self.lib = content_library.get_library()
         self.recent_segments: List[dict] = []
         self.history_bullets: List[dict] = list(history_bullets or [])
         self.triggered_scenario_ids = set(triggered_scenario_ids or [])
+        # 本场选定的必考场景（1–2 个）；未显式传入时按练习 ID 确定性轮换选出。
+        self.selected_must_cover_ids = (
+            list(selected_must_cover_ids) if selected_must_cover_ids is not None else None
+        )
         self.last_bullet_at: Optional[float] = None
         # 以练习开始（0 秒）为基准，冷场按距最后发言的时长判定
         self.last_segment_end: float = 0.0
         self._cold_start_count = 0
+        self._last_was_must_cover = False
 
     @property
     def live_type_en(self):
         return content_library.LIVE_TYPE_TO_EN.get(self.training.live_type)
 
     def _pending_must_cover(self) -> List[str]:
-        must = content_library.MUST_COVER_SCENARIOS.get(self.live_type_en or "", [])
-        return [sid for sid in must if sid not in self.triggered_scenario_ids]
+        if self.selected_must_cover_ids is None:
+            live_type_en = self.live_type_en or ""
+            seed = getattr(self.training, "id", 0) or 0
+            self.selected_must_cover_ids = content_library.select_must_cover(
+                live_type_en, seed
+            )
+        return [
+            sid for sid in self.selected_must_cover_ids
+            if sid not in self.triggered_scenario_ids
+        ]
 
     def _state(self, now_sec, has_new_segment):
         return {
@@ -112,6 +135,7 @@ class DynamicBulletEngine:
             "last_segment_end": self.last_segment_end,
             "pending_must_cover": self._pending_must_cover(),
             "has_new_segment": has_new_segment,
+            "last_was_must_cover": self._last_was_must_cover,
         }
 
     def on_final_segment(self, segment: dict, now_sec: float) -> Optional[BulletDraft]:
@@ -204,7 +228,9 @@ class DynamicBulletEngine:
 
     def _fallback(self, now_sec: float, trigger_segment_id=None) -> BulletDraft:
         pending = self._pending_must_cover()
-        if pending:
+        # 上一条不是必考且还有未触发的必考场景时，用必考场景兜底；否则用通用
+        # 追问兜底，避免连续出现两条必考弹幕（一场最多连续 1 条必考）。
+        if pending and not self._last_was_must_cover:
             return self._preset_must_cover(pending[0], now_sec)
         return BulletDraft(
             text="嗯，这个话题挺有意思，能再展开讲讲吗？",
@@ -220,6 +246,7 @@ class DynamicBulletEngine:
         self.history_bullets.append({"text": draft.text, "trigger_type": draft.trigger_type})
         if draft.scenario_id:
             self.triggered_scenario_ids.add(draft.scenario_id)
+        self._last_was_must_cover = draft.trigger_type == "预设必考"
 
 
 def _extract_json(text: str) -> dict:
