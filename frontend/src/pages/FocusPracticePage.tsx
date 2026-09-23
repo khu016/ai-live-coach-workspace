@@ -15,6 +15,8 @@ const TOPIC_REPORT: Record<string, string> = {
   冷场处理: 'r4',
   报价表达: 'r3',
   知识结构: 'r2',
+  表达节奏: 'r4',
+  产品介绍: 'r3',
 }
 
 export default function FocusPracticePage() {

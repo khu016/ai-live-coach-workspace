@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Camera, CameraOff, Mic, MicOff, Play, RefreshCw } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
@@ -14,6 +14,7 @@ import {
   type LiveType,
   type PracticeMode,
 } from '../data/mock'
+import { createTraining, saveTrainingScript } from '../api/client'
 
 const FULL_TOPICS = ['综合练习', '开场留人', '弹幕应答', '冷场处理', '报价表达']
 
@@ -26,11 +27,20 @@ export default function PracticeNewPage() {
     searchParams.get('mode') === 'focus' ? 'focus' : 'full',
   )
   const [liveType, setLiveType] = useState<LiveType>('带货')
-  const [topic, setTopic] = useState(mode === 'focus' ? '开场留人' : '综合练习')
+  const requestedTopic = searchParams.get('topic')
+  const [topic, setTopic] = useState(
+    mode === 'focus' && requestedTopic && FOCUS_TOPICS.includes(requestedTopic)
+      ? requestedTopic
+      : mode === 'focus'
+        ? '开场留人'
+        : '综合练习',
+  )
   const [cameraOn, setCameraOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
   const [checking, setChecking] = useState(false)
   const [checked, setChecked] = useState(false)
+  const [starting, setStarting] = useState(false)
+  const [previewStream, setPreviewStream] = useState<MediaStream | null>(null)
 
   const topics = mode === 'focus' ? FOCUS_TOPICS : FULL_TOPICS
 
@@ -39,23 +49,59 @@ export default function PracticeNewPage() {
     setTopic(next === 'focus' ? '开场留人' : '综合练习')
   }
 
-  const detect = () => {
+  useEffect(() => {
+    return () => previewStream?.getTracks().forEach((track) => track.stop())
+  }, [previewStream])
+
+  const resetPreview = () => {
+    previewStream?.getTracks().forEach((track) => track.stop())
+    setPreviewStream(null)
+    setChecked(false)
+  }
+
+  const detect = async () => {
     setChecking(true)
     setChecked(false)
-    window.setTimeout(() => {
-      setChecking(false)
+    previewStream?.getTracks().forEach((track) => track.stop())
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前浏览器不支持设备检测')
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: cameraOn,
+        audio: micOn,
+      })
+      setPreviewStream(stream)
       setChecked(true)
       showToast('设备检测完成：摄像头与麦克风可用', 'success')
-    }, 900)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '无法访问摄像头或麦克风'
+      showToast(`${message}，请在浏览器设置中允许访问`, 'error')
+      setPreviewStream(null)
+    } finally {
+      setChecking(false)
+    }
   }
 
-  const start = () => {
+  const start = async () => {
     const goal = mode === 'full' ? (topic === '综合练习' ? '完整模拟直播' : topic) : topic
     setDraft({ mode, liveType, topic, goal })
-    navigate(mode === 'full' ? '/practice/live' : '/practice/focus')
+    if (mode === 'focus') {
+      resetPreview()
+      navigate('/practice/focus')
+      return
+    }
+    setStarting(true)
+    try {
+      const result = await createTraining({ live_type: liveType, goal, topic })
+      saveTrainingScript(result.training.id, result.script)
+      resetPreview()
+      navigate(`/practice/live?trainingId=${result.training.id}`)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '创建练习失败', 'error')
+      setStarting(false)
+    }
   }
 
-  const canStart = topic.length > 0 && cameraOn && micOn
+  const canStart = topic.length > 0 && cameraOn && micOn && checked && !starting
 
   return (
     <div className="page page--narrow">
@@ -115,7 +161,13 @@ export default function PracticeNewPage() {
         <h2 className="section-title">设备检测</h2>
         <Card>
           <div className="device-grid">
-            <VideoPreview label="摄像头预览" className="device-preview" />
+            <VideoPreview
+              label="检测后显示摄像头画面"
+              className="device-preview"
+              stream={previewStream}
+              autoPlay
+              muted
+            />
             <div className="device-panel">
               <div className="device-row">
                 <span className="device-row__icon">
@@ -127,7 +179,10 @@ export default function PracticeNewPage() {
                 </span>
                 <Toggle
                   checked={cameraOn}
-                  onChange={setCameraOn}
+                  onChange={(next) => {
+                    setCameraOn(next)
+                    resetPreview()
+                  }}
                   label="摄像头"
                   id="dev-camera"
                 />
@@ -140,7 +195,15 @@ export default function PracticeNewPage() {
                   <span className="medium">麦克风</span>
                   <span className="text-xs text-tertiary">内置麦克风</span>
                 </span>
-                <Toggle checked={micOn} onChange={setMicOn} label="麦克风" id="dev-mic" />
+                <Toggle
+                  checked={micOn}
+                  onChange={(next) => {
+                    setMicOn(next)
+                    resetPreview()
+                  }}
+                  label="麦克风"
+                  id="dev-mic"
+                />
               </div>
               <div className="device-row device-row--check">
                 <span className="text-sm text-secondary">
@@ -164,11 +227,15 @@ export default function PracticeNewPage() {
       <div className="section">
         <Button size="lg" block onClick={start} disabled={!canStart}>
           <Play size={16} aria-hidden />
-          开始练习
+          {starting ? '正在创建练习…' : '开始练习'}
         </Button>
         {!cameraOn || !micOn ? (
           <p className="text-xs text-tertiary mt-2" style={{ textAlign: 'center' }}>
             请先开启摄像头和麦克风
+          </p>
+        ) : !checked ? (
+          <p className="text-xs text-tertiary mt-2" style={{ textAlign: 'center' }}>
+            请先完成设备检测
           </p>
         ) : null}
       </div>

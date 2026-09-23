@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, LogOut, Trash2 } from 'lucide-react'
+import { Bell, Check, LogOut, ShieldCheck, Sparkles, Trash2, UserRound, Video } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
@@ -44,13 +44,34 @@ export default function ProfilePage() {
     })
     showToast('已保存个人设置', 'success')
   }
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   return (
-    <div className="page page--narrow">
-      <PageHeader title="个人中心" subtitle="管理你的资料、设备与隐私设置。" />
+    <div className="page profile-page">
+      <PageHeader title="个人中心" subtitle="管理账号、设备与录像偏好" />
 
-      <Card className="section">
-        <h3 className="text-lg semibold mb-4">基本资料</h3>
+      <div className="profile-layout">
+        <aside className="profile-sidebar" aria-label="个人中心设置分类">
+          <button className="is-active" onClick={() => scrollTo('profile-account')}><UserRound size={19} />账号资料</button>
+          <button onClick={() => scrollTo('profile-devices')}><Video size={19} />设备偏好</button>
+          <button onClick={() => scrollTo('profile-privacy')}><ShieldCheck size={19} />隐私与录像</button>
+          <button onClick={() => scrollTo('profile-notify')}><Bell size={19} />通知设置</button>
+          <div className="profile-preference frosted">
+            <Sparkles size={20} />
+            <span>当前训练重点</span>
+            <strong>弹幕追问应答</strong>
+            <small>系统会优先推荐相关难点练习</small>
+          </div>
+        </aside>
+        <div className="profile-content">
+
+      <Card className="section" id="profile-account">
+        <h3 className="text-lg semibold mb-4">账号资料</h3>
+        <div className="profile-avatar-row">
+          <span className="profile-avatar">{nickname.slice(0, 1)}</span>
+          <div><strong>{nickname}</strong><small>个人主播账号</small></div>
+          <Button variant="secondary" size="sm" onClick={() => showToast('头像上传功能将在账号服务接入后开放', 'success')}>更换头像</Button>
+        </div>
         <div className="form-grid">
           <FormField label="昵称" htmlFor="profile-nickname">
             <input
@@ -91,7 +112,7 @@ export default function ProfilePage() {
         </div>
       </Card>
 
-      <Card className="section">
+      <Card className="section" id="profile-devices">
         <h3 className="text-lg semibold mb-4">默认设备</h3>
         <div className="form-grid">
           <FormField label="默认摄像头" htmlFor="profile-camera">
@@ -125,7 +146,7 @@ export default function ProfilePage() {
         </div>
       </Card>
 
-      <Card className="section">
+      <Card className="section" id="profile-privacy">
         <h3 className="text-lg semibold mb-4">隐私与录像</h3>
         <div className="setting-list">
           <div className="setting-row">
@@ -142,7 +163,7 @@ export default function ProfilePage() {
             </div>
             <Toggle checked={selfOnly} onChange={setSelfOnly} label="录像仅自己可见" id="set-self" />
           </div>
-          <div className="setting-row">
+          <div className="setting-row" id="profile-notify">
             <div>
               <div className="medium">训练洞察提醒</div>
               <div className="text-xs text-tertiary">有新反馈或进步提醒时通知你</div>
@@ -165,6 +186,8 @@ export default function ProfilePage() {
         <button className="link-danger" onClick={() => setConfirmDelete(true)}>
           <Trash2 size={14} aria-hidden /> 注销账号
         </button>
+      </div>
+        </div>
       </div>
 
       <Modal

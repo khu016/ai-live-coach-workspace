@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Eye, FileVideo, Lock, MoreHorizontal, Search, Trash2, VideoOff } from 'lucide-react'
+import { Download, Eye, FileVideo, Lock, MoreHorizontal, Play, Search, Trash2, VideoOff } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
@@ -78,8 +78,15 @@ export default function RecordingsPage() {
     <div className="page">
       <PageHeader
         title="录像管理"
-        subtitle="练习录像默认仅自己可见，可回看、下载或删除。"
+        subtitle="管理练习录像与可见范围"
+        actions={<Button onClick={() => navigate('/practice/new')}><Play size={15} />开始新练习</Button>}
       />
+
+      <div className="recording-privacy frosted">
+        <span><Lock size={22} /></span>
+        <div><strong>录像默认仅自己可见</strong><small>你可以在每条录像中单独修改可见范围</small></div>
+        <button onClick={() => navigate('/profile')}>了解隐私设置</button>
+      </div>
 
       <div className="toolbar">
         <div className="search">

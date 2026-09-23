@@ -17,21 +17,27 @@ interface ChartPoint {
   value: number
 }
 
-function LineChart({ points }: { points: ChartPoint[] }) {
+interface ChartSeries {
+  name: string
+  color: string
+  points: ChartPoint[]
+}
+
+function LineChart({ series }: { series: ChartSeries[] }) {
   const w = 560
   const h = 200
   const padX = 28
   const padY = 24
   const min = 40
   const max = 100
+  const points = series[0]?.points ?? []
   const stepX = (w - padX * 2) / Math.max(1, points.length - 1)
   const x = (i: number) => padX + i * stepX
   const y = (v: number) => h - padY - ((v - min) / (max - min)) * (h - padY * 2)
 
-  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.value)}`).join(' ')
-  const area = `${path} L ${x(points.length - 1)} ${h - padY} L ${x(0)} ${h - padY} Z`
-
   return (
+    <div className="growth-chart-wrap">
+    <div className="growth-chart-legend">{series.map((item) => <span key={item.name}><i style={{ background: item.color }} />{item.name}</span>)}</div>
     <svg viewBox={`0 0 ${w} ${h}`} className="chart" role="img" aria-label="能力趋势图">
       {[40, 60, 80, 100].map((g) => (
         <line
@@ -44,24 +50,20 @@ function LineChart({ points }: { points: ChartPoint[] }) {
           strokeWidth="1"
         />
       ))}
-      <path d={area} fill="var(--brand-soft)" />
-      <path
-        d={path}
-        fill="none"
-        stroke="var(--brand)"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {points.map((p, i) => (
+      {series.map((item) => {
+        const path = item.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.value)}`).join(' ')
+        return <path key={item.name} d={path} fill="none" stroke={item.color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      })}
+      {series[0]?.points.map((p, i) => (
         <g key={p.label}>
-          <circle cx={x(i)} cy={y(p.value)} r="3.6" fill="#fff" stroke="var(--brand)" strokeWidth="2" />
+          <circle cx={x(i)} cy={y(p.value)} r="3.6" fill="#fff" stroke={series[0].color} strokeWidth="2" />
           <text x={x(i)} y={h - 6} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">
             {p.label}
           </text>
         </g>
       ))}
     </svg>
+    </div>
   )
 }
 
@@ -73,12 +75,16 @@ export default function GrowthPage() {
 
   const slice = range === '近 7 天' ? 3 : range === '近 30 天' ? 5 : 6
 
-  const chartPoints = useMemo<ChartPoint[]>(() => {
-    const source = dimension === '综合' ? trend : trendByDimension[dimension] ?? trend
-    return source.slice(-slice).map((p) => ({
-      label: p.label,
-      value: p.dimensions[0].value,
-    }))
+  const chartSeries = useMemo<ChartSeries[]>(() => {
+    const toPoints = (source: typeof trend) => source.slice(-slice).map((p) => ({ label: p.label, value: p.dimensions[0].value }))
+    if (dimension !== '综合') {
+      return [{ name: dimension, color: 'var(--brand)', points: toPoints(trendByDimension[dimension] ?? trend) }]
+    }
+    return [
+      { name: '表达清晰度', color: '#08b8b0', points: toPoints(trendByDimension['表达清晰度']) },
+      { name: '弹幕应对', color: '#15171c', points: toPoints(trendByDimension['弹幕应对']) },
+      { name: '内容组织', color: '#9aa6b1', points: toPoints(trendByDimension['内容组织']) },
+    ]
   }, [dimension, slice])
 
   const records = useMemo(() => {
@@ -98,7 +104,8 @@ export default function GrowthPage() {
         <MetricCard label="相较首次" value={latest - first >= 0 ? `+${latest - first}` : latest - first} unit="分" hint="持续练习带来的进步" />
       </div>
 
-      <Card className="mt-6">
+      <div className="growth-main mt-6">
+      <Card>
         <div className="growth-filters">
           <div>
             <span className="filter-label">时间范围</span>
@@ -126,12 +133,20 @@ export default function GrowthPage() {
         </div>
 
         <div className="mt-3">
-          <LineChart points={chartPoints} />
+          <LineChart series={chartSeries} />
         </div>
         <p className="text-xs text-tertiary mt-2">
-          筛选「{type}」·「{dimension}」·「{range}」共 {chartPoints.length} 个数据点。
+          趋势显示「{dimension}」在「{range}」内的变化；直播类型筛选用于下方进步证据。
         </p>
       </Card>
+      <aside className="growth-insight frosted">
+        <span>本月进步</span>
+        <strong>弹幕追问应答</strong>
+        <small>完整回答比例</small>
+        <b>42% <i>→</i> 67%</b>
+        <p>先说结论后再补充原因，已经更稳定。</p>
+      </aside>
+      </div>
 
       <section className="section mt-6">
         <h2 className="section-title">进步证据</h2>

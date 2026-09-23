@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { BookOpen, Clock, Search, SearchX } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { FilterBar } from '../components/FilterBar'
@@ -12,10 +13,15 @@ import { tutorials, TUTORIAL_CATEGORIES, type Tutorial } from '../data/mock'
 
 export default function TutorialsPage() {
   const { showToast } = useApp()
+  const [searchParams] = useSearchParams()
   const [category, setCategory] = useState('全部')
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(searchParams.get('q') ?? '')
   const [active, setActive] = useState<Tutorial | null>(null)
   const [learning, setLearning] = useState(false)
+
+  useEffect(() => {
+    setQuery(searchParams.get('q') ?? '')
+  }, [searchParams])
 
   const filtered = useMemo(() => {
     return tutorials.filter((t) => {
