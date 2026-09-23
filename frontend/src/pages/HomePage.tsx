@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
   BarChart3,
@@ -121,7 +121,11 @@ export default function HomePage() {
       </section>
 
       <section className="home-workspace" aria-label="训练数据总览">
-        <article className="home-panel weekly-panel">
+        <Link
+          to="/growth"
+          className="home-panel home-panel--interactive weekly-panel"
+          aria-label="查看本周训练详情"
+        >
           <header><span><BarChart3 size={19} /> 本周训练</span></header>
           <div className="weekly-summary">
             <strong>{weekCount}<small>次</small></strong>
@@ -138,10 +142,14 @@ export default function HomePage() {
             </div>
           </div>
           <p className="text-xs text-tertiary">数据来自已保存的真实训练记录，不包含演示值。</p>
-        </article>
+        </Link>
 
         <div className="home-middle-stack">
-          <article className="home-panel rhythm-panel">
+          <Link
+            to="/growth"
+            className="home-panel home-panel--interactive rhythm-panel"
+            aria-label="查看互动节奏详情"
+          >
             <header><span><CircleCheck size={19} /> 互动节奏</span><small className="rhythm-range">本周</small></header>
             <div className="rhythm-summary">
               {sampleSufficient ? (
@@ -156,9 +164,13 @@ export default function HomePage() {
                 ? `回应窗口内已关联有效转写片段的弹幕占比，样本 ${sampleCount} 条。`
                 : '可评分且需回应的弹幕少于 3 条，暂不显示百分比。'}
             </p>
-          </article>
+          </Link>
 
-          <article className="home-panel progress-panel">
+          <Link
+            to="/growth"
+            className="home-panel home-panel--interactive progress-panel"
+            aria-label="查看本周进步详情"
+          >
             <header><span><TrendingUp size={19} /> 本周进步</span><ChevronRight size={18} /></header>
             <div className="progress-row">
               <span>训练次数</span><div><i style={{ width: '100%' }} /></div><b>{weekCount} 场</b>
@@ -169,10 +181,10 @@ export default function HomePage() {
             <p className="text-xs text-tertiary mt-3">
               表达流畅度、互动能力等评分口径尚在积累样本，暂不展示百分比趋势。
             </p>
-          </article>
+          </Link>
         </div>
 
-        <article className="home-panel coach-panel">
+        <article className="home-panel home-panel--animated coach-panel">
           <header><span><Sparkles size={20} /> AI 陪练</span><button aria-label="展开"><ArrowRight size={18} /></button></header>
           <div className="coach-advice">
             <span className="coach-bot"><Bot size={28} /></span>
@@ -182,10 +194,16 @@ export default function HomePage() {
           {recent.length === 0 ? (
             <p className="text-sm text-tertiary coach-empty">还没有已完成的练习，先开始一场吧。</p>
           ) : recent.map((t) => (
-            <button className="coach-record" key={t.id} onClick={() => navigate(`/reports/${t.id}`)}>
+            <button
+              className="coach-record"
+              key={t.id}
+              onClick={() => navigate(`/reports/${t.id}`)}
+              aria-label={`查看训练报告：${t.goal}`}
+            >
               <span className="record-icon"><MessageCircle size={18} /></span>
               <span><b>{t.goal}</b><small>{t.live_type} · {t.practice_mode === 'focus' ? '难点练习' : '完整模拟'}</small></span>
               <em>已完成</em>
+              <ChevronRight className="coach-record__arrow" size={17} aria-hidden />
             </button>
           ))}
           <div className="coach-actions">
