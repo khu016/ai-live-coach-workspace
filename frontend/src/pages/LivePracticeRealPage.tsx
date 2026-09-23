@@ -46,10 +46,16 @@ const CATEGORY_MAP: Record<string, BulletCategory> = {
   ambient_noise: '噪声',
   related: '追问',
   dynamic: '追问',
+  engagement: '话题',
 }
 
 function categoryOf(value?: string | null): BulletCategory {
   return CATEGORY_MAP[value ?? ''] ?? '话题'
+}
+
+function audioMimeType(): string | null {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm']
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? null
 }
 
 function connectRealtime(
@@ -85,6 +91,7 @@ export default function LivePracticeRealPage() {
   const [searchParams] = useSearchParams()
   const { draft, showToast } = useApp()
   const trainingId = Number(searchParams.get('trainingId'))
+  const mode = searchParams.get('mode') === 'focus' ? 'focus' : 'full'
 
   const [training, setTraining] = useState<ApiTraining | null>(null)
   const [status, setStatus] = useState<LiveStatus>('idle')
@@ -107,6 +114,7 @@ export default function LivePracticeRealPage() {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const recorderChunksRef = useRef<Blob[]>([])
   const pcmRef = useRef<PcmStreamer | null>(null)
+  const mediaKindRef = useRef<'video' | 'audio'>('video')
 
   useEffect(() => {
     statusRef.current = status
@@ -122,7 +130,12 @@ export default function LivePracticeRealPage() {
       return
     }
     getTraining(trainingId)
-      .then(setTraining)
+      .then((t) => {
+        setTraining(t)
+        // 摄像头默认按创建练习时的 media_kind：audio 训练不请求视频轨道
+        setCameraOn(t.media_kind === 'video')
+        mediaKindRef.current = t.media_kind === 'audio' ? 'audio' : 'video'
+      })
       .catch((error) => setLoadError(error instanceof Error ? error.message : '读取练习失败'))
   }, [trainingId])
 
@@ -183,11 +196,18 @@ export default function LivePracticeRealPage() {
     setAsrMessage('')
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前浏览器不支持摄像头和麦克风')
-      const mimeType = recordingMimeType()
-      if (!mimeType) throw new Error('当前浏览器不支持 WebM 录像，请使用最新版 Chrome 或 Edge')
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      // 麦克风必需、摄像头可选：关闭摄像头时只申请音频轨道，不创建黑色视频轨道
+      const mediaKind: 'video' | 'audio' = cameraOn ? 'video' : 'audio'
+      const mimeType = mediaKind === 'video' ? recordingMimeType() : audioMimeType()
+      if (!mimeType) throw new Error('当前浏览器不支持 WebM 录制，请使用最新版 Chrome 或 Edge')
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: mediaKind === 'video',
+        audio: true,
+      })
+      if (!stream.getAudioTracks().length) throw new Error('未获取到麦克风，请允许浏览器访问麦克风')
       streamRef.current = stream
-      setVideoStream(stream)
+      setVideoStream(mediaKind === 'video' ? stream : null)
+      mediaKindRef.current = mediaKind
       const socket = await connectRealtime(training.id, handleSocketMessage)
       socketRef.current = socket
       const recorder = new MediaRecorder(stream, { mimeType })
@@ -249,7 +269,10 @@ export default function LivePracticeRealPage() {
       recorder.addEventListener(
         'stop',
         () => {
-          const blob = new Blob(recorderChunksRef.current, { type: 'video/webm' })
+          const kind = mediaKindRef.current
+          const blob = new Blob(recorderChunksRef.current, {
+            type: kind === 'audio' ? 'audio/webm' : 'video/webm',
+          })
           if (blob.size === 0) reject(new Error('录像为空，请重新练习'))
           else resolve(blob)
         },
@@ -287,9 +310,9 @@ export default function LivePracticeRealPage() {
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = null
       setVideoStream(null)
-      await finishTraining(training.id, recording, elapsedRef.current)
+      await finishTraining(training.id, recording, elapsedRef.current, mediaKindRef.current)
       setStatus('ended')
-      showToast('录像已保存，正在生成训练反馈', 'success')
+      showToast('已保存，正在生成训练反馈', 'success')
       navigate(`/reports/${training.id}`)
     } catch (error) {
       const message = error instanceof Error ? error.message : '保存训练失败'
@@ -301,8 +324,10 @@ export default function LivePracticeRealPage() {
 
   const toggleCamera = () => {
     const next = !cameraOn
-    streamRef.current?.getVideoTracks().forEach((track) => { track.enabled = next })
+    // 仅开始前允许切换（开始后不改变媒体模式，避免录制中出现黑色视频轨）
+    if (status !== 'idle' && status !== 'error') return
     setCameraOn(next)
+    mediaKindRef.current = next ? 'video' : 'audio'
   }
 
   const toggleMic = () => {
@@ -341,7 +366,7 @@ export default function LivePracticeRealPage() {
     <div className="page live-page">
       <div className="live-header">
         <div>
-          <h1 className="text-xl semibold">完整模拟直播</h1>
+          <h1 className="text-xl semibold">{mode === 'focus' ? '难点练习' : '完整模拟直播'}</h1>
           <p className="text-sm text-secondary">
             {training?.live_type ?? draft.liveType} · {training?.goal ?? draft.goal} · 模拟观众，不会真实开播
           </p>
@@ -356,16 +381,23 @@ export default function LivePracticeRealPage() {
 
       <div className="live-grid">
         <div className="live-stage">
-          <VideoPreview
-            live={isRunning}
-            label={status === 'connecting' ? '正在连接摄像头…' : '点击开始后显示摄像头画面'}
-            stream={videoStream}
-            autoPlay
-            muted
-          />
+          {cameraOn ? (
+            <VideoPreview
+              live={isRunning}
+              label={status === 'connecting' ? '正在连接摄像头…' : '点击开始后显示摄像头画面'}
+              stream={videoStream}
+              autoPlay
+              muted
+            />
+          ) : (
+            <div className="video-preview video-preview--audio">
+              <Mic size={30} strokeWidth={1.4} />
+              <span>仅音频训练，不显示摄像头画面</span>
+            </div>
+          )}
           <div className="live-controls">
             <div className="row gap-3">
-              <IconButton label={cameraOn ? '关闭摄像头' : '开启摄像头'} bordered onClick={toggleCamera} disabled={!videoStream || isBusy}>
+              <IconButton label={cameraOn ? '关闭摄像头' : '开启摄像头'} bordered onClick={toggleCamera} disabled={isBusy || isRunning || status === 'paused'}>
                 {cameraOn ? <Camera size={18} /> : <CameraOff size={18} />}
               </IconButton>
               <IconButton label={micOn ? '关闭麦克风' : '开启麦克风'} bordered onClick={toggleMic} disabled={!videoStream || isBusy}>

@@ -25,6 +25,7 @@ from ..services.ambient_bullets import BulletScheduler
 from ..services.realtime import (
     PCM_BYTES_PER_SEC,
     event_to_message,
+    link_segment_to_pending_bullets,
     save_bullet,
     save_segment,
 )
@@ -76,6 +77,9 @@ async def asr_ws(websocket: WebSocket, training_id: int):
                         break
                     if ev.kind == "final" and ev.text.strip():
                         seg_id = save_segment(training_id, ev)
+                        link_segment_to_pending_bullets(
+                            training_id, seg_id, ev.start_sec
+                        )
                         await _push(event_to_message(ev))
                         seg_dict = {
                             "id": seg_id,

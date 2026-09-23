@@ -20,7 +20,7 @@ import random
 from typing import List, Optional
 
 from ..core.config import settings
-from . import content_library
+from . import content_library, engagement as engagement_svc
 from .dynamic_bullets import BulletDraft, DynamicBulletEngine
 
 # 环境弹幕分类 → 对外触发类型标签
@@ -141,6 +141,12 @@ class BulletScheduler:
         )
         # 关键发言后的短弹幕组合剩余条数
         self.burst_remaining = 0
+        # 互动号召待回应队列：每条回应带目标展示时间（确定转写后 2–6 秒）
+        self.engagement_queue: List[dict] = []
+        # 上一次识别到的互动号召触发文本（用于相邻重复号召合并）
+        self._last_call_text: Optional[str] = None
+        # 是否允许 AI 识别（无模型 Key 时只走规则，避免阻塞）
+        self._use_ai = bool(settings.model_api_key)
 
     # ---- 内部工具 ----
 
@@ -179,10 +185,72 @@ class BulletScheduler:
             self.next_ambient_at = now_sec + self._random_interval()
         # cold_start / fallback：不改变环境与刁难节奏
 
+    def _history_bullet_texts(self) -> List[dict]:
+        return self.dynamic.history_bullets
+
+    def _maybe_enqueue_engagement(self, segment: dict, now_sec: float) -> None:
+        """识别互动号召并生成回应组入队（不立即展示）。
+
+        规则命中或 AI 命中后：
+        1. 相邻重复号召合并（同一号召只生成一个回应组）。
+        2. 生成回应组（AI 或预设降级），落库 EngagementCall（status=generated）。
+        3. 把回应按 2–6 秒均匀分布加入待回应队列，后续由 on_tick 优先展示。
+        """
+        text = (segment.get("text") or "").strip()
+        if not text:
+            return
+        det = engagement_svc.classify_engagement(
+            text, segment.get("id"), use_ai=self._use_ai
+        )
+        if det is None:
+            return
+        # 相邻重复号召合并：避免刷屏，同一号召只生成一个回应组
+        if self._last_call_text == text:
+            return
+        self._last_call_text = text
+        responses = engagement_svc.generate_response_group(
+            self.training, det, self._history_bullet_texts()
+        )
+        if not responses:
+            return
+        call = engagement_svc.save_engagement_call(
+            self.training.id, det, segment.get("id"), responses
+        )
+        # 2–6 秒内陆续展示：回应组内部用更短自然间隔，首条最迟 6 秒
+        count = max(1, len(responses))
+        base = now_sec + 2.0
+        span = 4.0  # 2~6 秒窗口
+        for i, r in enumerate(responses):
+            offset = (span / count) * i + self.rng.uniform(0.0, 0.4)
+            self.engagement_queue.append(
+                {"text": r, "target_at": base + offset, "call_id": call.id}
+            )
+
+    def _pop_due_engagement(self, now_sec: float) -> Optional[BulletDraft]:
+        """取出到期的互动回应（优先于刁难/环境，不受全局最小间隔限制）。"""
+        if not self.engagement_queue:
+            return None
+        item = self.engagement_queue[0]
+        if item["target_at"] > now_sec:
+            return None
+        self.engagement_queue.pop(0)
+        return BulletDraft(
+            text=item["text"],
+            trigger_type="互动回应",
+            trigger_reason="主播互动号召的模拟观众回应",
+            status="shown",
+            at_sec=now_sec,
+            bullet_category="engagement",
+            requires_response=False,
+            scorable=False,
+            meta={"engagement_call_id": item["call_id"]},
+        )
+
     # ---- 对外接口 ----
 
     def on_final_segment(self, segment: dict, now_sec: float) -> Optional[BulletDraft]:
-        """主播稳定转写到达：优先触发必考/相关弹幕（相关优先于环境）。"""
+        """主播稳定转写到达：先识别互动号召入队，再触发必考/相关弹幕。"""
+        self._maybe_enqueue_engagement(segment, now_sec)
         draft = self.dynamic.on_final_segment(segment, now_sec)
         if draft is None:
             return None
@@ -190,7 +258,12 @@ class BulletScheduler:
         return draft
 
     def on_tick(self, now_sec: float) -> Optional[BulletDraft]:
-        """定时回调：刁难 > 冷场激活 > 环境弹幕（刁难优先，防饿死）。"""
+        """定时回调：互动回应 > 刁难 > 冷场激活 > 环境弹幕。"""
+        # 互动回应优先：到期即展示，不因全局冷却期而丢弃
+        draft = self._pop_due_engagement(now_sec)
+        if draft is not None:
+            self._mark(draft, now_sec)
+            return draft
         if not self._can_display(now_sec):
             return None
         # 刁难弹幕优先，避免被冷场/环境持续挤占

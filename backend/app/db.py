@@ -61,3 +61,21 @@ def run_migrations() -> None:
                     "ALTER TABLE trainings ADD COLUMN "
                     "selected_must_cover_scenario_ids JSON"
                 )
+            if "practice_mode" not in tcols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE trainings ADD COLUMN practice_mode VARCHAR(32)"
+                )
+            if "media_kind" not in tcols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE trainings ADD COLUMN media_kind VARCHAR(32)"
+                )
+        if insp.has_table("recordings"):
+            rcols = {c["name"] for c in insp.get_columns("recordings")}
+            if "media_kind" not in rcols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE recordings ADD COLUMN media_kind VARCHAR(32)"
+                )
+            if "mime_type" not in rcols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE recordings ADD COLUMN mime_type VARCHAR(64)"
+                )

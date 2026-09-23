@@ -35,6 +35,7 @@ export default function PracticeNewPage() {
         ? '开场留人'
         : '综合练习',
   )
+  // 摄像头可选，默认开启；麦克风必需，默认开启
   const [cameraOn, setCameraOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
   const [checking, setChecking] = useState(false)
@@ -65,16 +66,26 @@ export default function PracticeNewPage() {
     previewStream?.getTracks().forEach((track) => track.stop())
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前浏览器不支持设备检测')
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: cameraOn,
-        audio: micOn,
-      })
-      setPreviewStream(stream)
+      if (!micOn) throw new Error('麦克风是语音训练必需设备，请先开启麦克风')
+      // 麦克风必需：先单独申请音频轨道
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const combined = audioStream
+      // 摄像头可选：开启时再申请视频轨道，失败则降级为仅音频
+      if (cameraOn) {
+        try {
+          const videoStream = await navigator.mediaDevices.getUserMedia({ video: true })
+          videoStream.getTracks().forEach((track) => combined.addTrack(track))
+        } catch {
+          setCameraOn(false)
+          showToast('摄像头不可用，本次将只保存音频', 'error')
+        }
+      }
+      setPreviewStream(combined)
       setChecked(true)
-      showToast('设备检测完成：摄像头与麦克风可用', 'success')
+      showToast(cameraOn ? '设备检测完成：摄像头与麦克风可用' : '设备检测完成：仅音频训练', 'success')
     } catch (error) {
-      const message = error instanceof Error ? error.message : '无法访问摄像头或麦克风'
-      showToast(`${message}，请在浏览器设置中允许访问`, 'error')
+      const message = error instanceof Error ? error.message : '无法访问麦克风'
+      showToast(`${message}，请在浏览器设置中允许访问麦克风`, 'error')
       setPreviewStream(null)
     } finally {
       setChecking(false)
@@ -83,25 +94,29 @@ export default function PracticeNewPage() {
 
   const start = async () => {
     const goal = mode === 'full' ? (topic === '综合练习' ? '完整模拟直播' : topic) : topic
+    const mediaKind: 'video' | 'audio' = cameraOn ? 'video' : 'audio'
     setDraft({ mode, liveType, topic, goal })
-    if (mode === 'focus') {
-      resetPreview()
-      navigate('/practice/focus')
-      return
-    }
     setStarting(true)
     try {
-      const result = await createTraining({ live_type: liveType, goal, topic })
+      // 难点练习与完整模拟共用真实训练链路，仅 practice_mode 不同
+      const result = await createTraining({
+        live_type: liveType,
+        goal,
+        topic,
+        practice_mode: mode,
+        media_kind: mediaKind,
+      })
       saveTrainingScript(result.training.id, result.script)
       resetPreview()
-      navigate(`/practice/live?trainingId=${result.training.id}`)
+      navigate(`/practice/live?trainingId=${result.training.id}${mode === 'focus' ? '&mode=focus' : ''}`)
     } catch (error) {
       showToast(error instanceof Error ? error.message : '创建练习失败', 'error')
       setStarting(false)
     }
   }
 
-  const canStart = topic.length > 0 && cameraOn && micOn && checked && !starting
+  // 麦克风必需；摄像头可选
+  const canStart = topic.length > 0 && micOn && checked && !starting
 
   return (
     <div className="page page--narrow">
@@ -161,13 +176,20 @@ export default function PracticeNewPage() {
         <h2 className="section-title">设备检测</h2>
         <Card>
           <div className="device-grid">
-            <VideoPreview
-              label="检测后显示摄像头画面"
-              className="device-preview"
-              stream={previewStream}
-              autoPlay
-              muted
-            />
+            {cameraOn ? (
+              <VideoPreview
+                label="检测后显示摄像头画面"
+                className="device-preview"
+                stream={previewStream}
+                autoPlay
+                muted
+              />
+            ) : (
+              <div className="device-preview device-preview--audio">
+                <Mic size={30} strokeWidth={1.4} />
+                <span>仅音频训练，不显示摄像头画面</span>
+              </div>
+            )}
             <div className="device-panel">
               <div className="device-row">
                 <span className="device-row__icon">
@@ -175,7 +197,7 @@ export default function PracticeNewPage() {
                 </span>
                 <span className="device-row__text">
                   <span className="medium">摄像头</span>
-                  <span className="text-xs text-tertiary">FaceTime HD 摄像头</span>
+                  <span className="text-xs text-tertiary">可选 · 关闭后仅保存音频</span>
                 </span>
                 <Toggle
                   checked={cameraOn}
@@ -193,7 +215,7 @@ export default function PracticeNewPage() {
                 </span>
                 <span className="device-row__text">
                   <span className="medium">麦克风</span>
-                  <span className="text-xs text-tertiary">内置麦克风</span>
+                  <span className="text-xs text-tertiary">语音训练必需</span>
                 </span>
                 <Toggle
                   checked={micOn}
@@ -211,7 +233,7 @@ export default function PracticeNewPage() {
                     ? '正在检测设备…'
                     : checked
                       ? '设备就绪，可以开始练习'
-                      : '开始前建议先检测一次设备'}
+                      : '开始前请先检测一次设备'}
                 </span>
                 {checked && <StatusTag tone="success">就绪</StatusTag>}
                 <Button variant="secondary" size="sm" onClick={detect} disabled={checking}>
@@ -229,9 +251,9 @@ export default function PracticeNewPage() {
           <Play size={16} aria-hidden />
           {starting ? '正在创建练习…' : '开始练习'}
         </Button>
-        {!cameraOn || !micOn ? (
+        {!micOn ? (
           <p className="text-xs text-tertiary mt-2" style={{ textAlign: 'center' }}>
-            请先开启摄像头和麦克风
+            麦克风是语音训练必需设备，请先开启麦克风
           </p>
         ) : !checked ? (
           <p className="text-xs text-tertiary mt-2" style={{ textAlign: 'center' }}>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
@@ -9,41 +9,46 @@ import {
   CircleCheck,
   FileText,
   MessageCircle,
-  MoreHorizontal,
   Play,
   Radio,
   Sparkles,
   Target,
   TrendingUp,
 } from 'lucide-react'
-const weekBars = [22, 34, 45, 48, 63, 78, 94]
+import { getWeekStats, listTrainings, type ApiTraining, type WeekStats } from '../api/client'
+
 const adviceCards = [
-  {
-    title: '弹幕追问应对',
-    description: '上次训练有 3 次回答缺少关键信息',
-    cta: '开始 5 分钟难点练习',
-    topic: '弹幕应答',
-    Icon: Sparkles,
-  },
-  {
-    title: '表达节奏',
-    description: '连续表达时有 2 处节奏变化过快',
-    cta: '开始节奏专项练习',
-    topic: '表达节奏',
-    Icon: BarChart3,
-  },
-  {
-    title: '产品介绍',
-    description: '核心卖点还可以表达得更有层次',
-    cta: '开始产品介绍练习',
-    topic: '产品介绍',
-    Icon: Target,
-  },
+  { title: '弹幕追问应对', description: '回答时补全对象、原因和结果', cta: '开始弹幕应答练习', topic: '弹幕应答', Icon: Sparkles },
+  { title: '表达节奏', description: '在重点信息前后留出停顿', cta: '开始节奏专项练习', topic: '表达节奏', Icon: BarChart3 },
+  { title: '产品介绍', description: '先说适用对象，再讲具体特点', cta: '开始产品介绍练习', topic: '产品介绍', Icon: Target },
 ]
+
+function minutesOf(sec: number): string {
+  if (sec < 60) return `${Math.round(sec)} 秒`
+  return `${Math.round(sec / 60)} 分钟`
+}
+
+function rateText(rate: number | null): string {
+  if (rate === null || rate === undefined) return '—'
+  return `${Math.round(rate * 100)}%`
+}
 
 export default function HomePage() {
   const navigate = useNavigate()
   const [activeAdvice, setActiveAdvice] = useState(0)
+  const [stats, setStats] = useState<WeekStats | null>(null)
+  const [recent, setRecent] = useState<ApiTraining[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    void getWeekStats()
+      .then((s) => { if (!cancelled) setStats(s) })
+      .catch(() => {})
+    void listTrainings()
+      .then((list) => { if (!cancelled) setRecent(list.slice(0, 3)) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const selectAdvice = (index: number) => {
     if (index === activeAdvice) {
@@ -52,6 +57,15 @@ export default function HomePage() {
     }
     setActiveAdvice(index)
   }
+
+  const week = stats?.week
+  const weekCount = week?.training_count ?? 0
+  const weekDuration = week?.total_duration_sec ?? 0
+  const requiredBullets = week?.required_response_bullets ?? 0
+  const respondedBullets = week?.responded_bullets ?? 0
+  const responseRate = week?.response_rate ?? null
+  const sampleSufficient = week?.sample_sufficient ?? false
+  const sampleCount = week?.sample_count ?? 0
 
   return (
     <div className="page home-dashboard">
@@ -110,74 +124,51 @@ export default function HomePage() {
         <article className="home-panel weekly-panel">
           <header><span><BarChart3 size={19} /> 本周训练</span></header>
           <div className="weekly-summary">
-            <strong>5<small>次</small></strong>
-            <button onClick={() => navigate('/reports/r6')}><span>待改进</span><b>2<small>项</small></b><ChevronRight size={18} /></button>
+            <strong>{weekCount}<small>次</small></strong>
+            <span className="text-sm text-secondary">累计 {minutesOf(weekDuration)}</span>
           </div>
-          <div className="week-bars" aria-label="本周训练次数柱状图">
-            {weekBars.map((height, index) => (
-              <div key={index} className="week-bars__item">
-                <i style={{ height: `${height}%` }} />
-                <span>{['周一', '周二', '周三', '周四', '周五', '周六', '周日'][index]}</span>
-              </div>
-            ))}
-          </div>
-          <div className="completeness">
-            <h3>应答完整度</h3>
-            <div className="completeness__bar"><i /><i /><i /></div>
-            <div className="completeness__legend">
-              <span><i className="dot dot--strong" />完整回答 <b>67%</b></span>
-              <span><i className="dot dot--soft" />部分完整 <b>24%</b></span>
-              <span><i className="dot dot--muted" />缺少信息 <b>9%</b></span>
+          <div className="weekly-metrics">
+            <div className="weekly-metric">
+              <span className="weekly-metric__label">需回应弹幕</span>
+              <strong>{requiredBullets}</strong>
+            </div>
+            <div className="weekly-metric">
+              <span className="weekly-metric__label">已回应</span>
+              <strong>{respondedBullets}</strong>
             </div>
           </div>
+          <p className="text-xs text-tertiary">数据来自已保存的真实训练记录，不包含演示值。</p>
         </article>
 
         <div className="home-middle-stack">
           <article className="home-panel rhythm-panel">
-            <header><span><CircleCheck size={19} /> 互动节奏</span><small className="rhythm-range">最近 7 天</small></header>
+            <header><span><CircleCheck size={19} /> 互动节奏</span><small className="rhythm-range">本周</small></header>
             <div className="rhythm-summary">
-              <div><strong>82%</strong><span>本周平均连贯度</span></div>
-              <span className="rhythm-change"><TrendingUp size={14} /> 较上周 +8%</span>
+              {sampleSufficient ? (
+                <div><strong>{rateText(responseRate)}</strong><span>回应及时率</span></div>
+              ) : (
+                <div><strong>数据不足</strong><span>已有样本 {sampleCount} 条</span></div>
+              )}
+              <span className="rhythm-change"><TrendingUp size={14} /> 需回应弹幕 {requiredBullets} 条</span>
             </div>
-            <div className="rhythm-chart" role="img" aria-label="最近七天互动连贯度从百分之五十八提升到百分之八十二，目标为百分之七十五">
-              <svg viewBox="0 0 330 112" preserveAspectRatio="none" aria-hidden>
-                <defs>
-                  <linearGradient id="rhythmArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#16bcb3" stopOpacity="0.24" />
-                    <stop offset="100%" stopColor="#16bcb3" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <g className="rhythm-grid">
-                  <line x1="12" y1="25" x2="318" y2="25" />
-                  <line x1="12" y1="57" x2="318" y2="57" />
-                  <line x1="12" y1="89" x2="318" y2="89" />
-                </g>
-                <line className="rhythm-target" x1="12" y1="46" x2="318" y2="46" />
-                <text className="rhythm-target-label" x="316" y="40" textAnchor="end">目标 75%</text>
-                <path className="rhythm-area" d="M18 91 C42 86 52 77 67 76 S101 86 116 82 S148 63 165 62 S198 52 214 48 S247 40 263 36 S296 26 312 22 L312 103 L18 103 Z" />
-                <path className="rhythm-line" d="M18 91 C42 86 52 77 67 76 S101 86 116 82 S148 63 165 62 S198 52 214 48 S247 40 263 36 S296 26 312 22" />
-                <g className="rhythm-points">
-                  <circle cx="18" cy="91" r="3" /><circle cx="67" cy="76" r="3" />
-                  <circle cx="116" cy="82" r="3" /><circle cx="165" cy="62" r="3" />
-                  <circle cx="214" cy="48" r="3" /><circle cx="263" cy="36" r="3" />
-                  <circle className="rhythm-point--latest" cx="312" cy="22" r="5" />
-                </g>
-              </svg>
-            </div>
-            <div className="rhythm-days" aria-hidden>{['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day) => <span key={day}>{day}</span>)}</div>
+            <p className="text-xs text-tertiary">
+              {sampleSufficient
+                ? `回应窗口内已关联有效转写片段的弹幕占比，样本 ${sampleCount} 条。`
+                : '可评分且需回应的弹幕少于 3 条，暂不显示百分比。'}
+            </p>
           </article>
 
           <article className="home-panel progress-panel">
             <header><span><TrendingUp size={19} /> 本周进步</span><ChevronRight size={18} /></header>
-            {[
-              ['表达流畅度', 82, '+67%'],
-              ['互动能力', 62, '+52%'],
-              ['产品介绍', 42, '+38%'],
-            ].map(([label, value, change]) => (
-              <div className="progress-row" key={String(label)}>
-                <span>{label}</span><div><i style={{ width: `${value}%` }} /></div><b>{change}</b>
-              </div>
-            ))}
+            <div className="progress-row">
+              <span>训练次数</span><div><i style={{ width: '100%' }} /></div><b>{weekCount} 场</b>
+            </div>
+            <div className="progress-row">
+              <span>训练时长</span><div><i style={{ width: '100%' }} /></div><b>{minutesOf(weekDuration)}</b>
+            </div>
+            <p className="text-xs text-tertiary mt-3">
+              表达流畅度、互动能力等评分口径尚在积累样本，暂不展示百分比趋势。
+            </p>
           </article>
         </div>
 
@@ -188,17 +179,19 @@ export default function HomePage() {
             <p>建议先练习弹幕追问，<br />回答时补全对象、原因和结果。</p>
           </div>
           <div className="coach-recent-head"><strong>最近练习</strong><button onClick={() => navigate('/growth')}>查看全部 <ChevronRight size={14} /></button></div>
-          <button className="coach-record" onClick={() => navigate('/reports/r6')}>
-            <span className="record-icon"><MessageCircle size={18} /></span><span><b>直播互动话术练习</b><small>昨天</small></span><em>已完成</em><MoreHorizontal size={18} />
-          </button>
-          <button className="coach-record" onClick={() => navigate('/reports/r5')}>
-            <span className="record-icon"><FileText size={18} /></span><span><b>带货产品介绍模拟</b><small>3 天前</small></span><em className="is-training">练习中</em><MoreHorizontal size={18} />
-          </button>
+          {recent.length === 0 ? (
+            <p className="text-sm text-tertiary coach-empty">还没有已完成的练习，先开始一场吧。</p>
+          ) : recent.map((t) => (
+            <button className="coach-record" key={t.id} onClick={() => navigate(`/reports/${t.id}`)}>
+              <span className="record-icon"><MessageCircle size={18} /></span>
+              <span><b>{t.goal}</b><small>{t.live_type} · {t.practice_mode === 'focus' ? '难点练习' : '完整模拟'}</small></span>
+              <em>已完成</em>
+            </button>
+          ))}
           <div className="coach-actions">
-            <button onClick={() => navigate('/reports/r6')}><FileText size={17} /> 查看依据</button>
+            <button onClick={() => navigate('/recordings')}><FileText size={17} /> 查看录像</button>
             <button className="primary" onClick={() => navigate('/practice/new?mode=focus&topic=弹幕应答')}><Play size={17} fill="currentColor" /> 开始练习</button>
           </div>
-          <button className="coach-input" onClick={() => navigate('/practice/new?mode=focus&topic=弹幕应答')}><MessageCircle size={17} /> 问问 AI 陪练 <ArrowRight size={17} /></button>
         </article>
       </section>
     </div>

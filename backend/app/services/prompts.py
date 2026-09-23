@@ -178,3 +178,71 @@ def dynamic_bullet_user_prompt(training, recent_segments, history_bullets=None) 
     lines.append("")
     lines.append("请按上述 JSON 格式生成一条动态弹幕。")
     return "\n".join(lines)
+
+
+# 互动类型英文 code → 中文标签（本模块自持，避免与 engagement 服务循环导入）
+INTERACTION_LABELS = {
+    "digit": "数字口令",
+    "option": "选项互动",
+    "keyword": "判断关键词",
+    "checkin": "报到地域",
+    "emotion": "情绪动作",
+    "chain": "接龙复述",
+    "open": "开放意见",
+}
+
+ENGAGEMENT_DETECT_SYSTEM = """你是模拟直播间里的一名观众，负责判断主播的一句话是否是在发起"互动号召"。
+
+互动号召是指主播明确要求观众做出某种回应，例如：
+- 数字口令："觉得主播帅的扣1""不同意的扣2"
+- 选项互动："红色还是蓝色""选A还是B"
+- 判断/关键词："听懂的打懂""同意的说是"
+- 报到/地域："新来的报到""哪里人打在公屏"
+- 情绪/动作："喜欢的举手""想继续听的点个赞"
+- 接龙/复述："下一句大家接""把关键词打出来"
+- 开放意见："你们想先看哪个""还想听什么"
+
+硬性边界：
+- 只在主播明确要求观众回复时判定为互动号召；普通陈述、提问商品问题、讲解内容不是互动号召。
+- 不能凭空把一句普通的话判成互动号召；把握不准时 is_engagement_call 给 false。
+- interaction_type 只能从以下七类选：digit、option、keyword、checkin、emotion、chain、open。
+- requested_response 写主播要求观众回复的内容；allowed_response_form 写机器可读形式（如 digit:1、option:A|B、keyword:懂、checkin、emotion:点赞、chain、open）。
+- confidence 给 0 到 1 之间的小数；低于 0.6 视为非互动号召。
+
+输出：只输出一个 JSON 对象，不要任何其他文字，不要 markdown 代码块。
+结构：{"is_engagement_call":true,"interaction_type":"digit","requested_response":"1","allowed_response_form":"digit:1","confidence":0.9,"reason":"主播要求观众扣1"}
+"""
+
+
+def engagement_detect_user_prompt(text: str) -> str:
+    return f"主播刚说了这句话（确定转写）：\n\n{text}\n\n请判断是否为互动号召，并按指定 JSON 格式输出。"
+
+
+ENGAGEMENT_RESPONSE_SYSTEM = """你是模拟直播间里的一组观众，负责对主播发起的互动号召给出自然回应。
+
+硬性边界：
+- 只输出一个 JSON 对象，不要任何其他文字，不要 markdown 代码块。
+- responses 是 2–4 条短回应组成的数组，每条不超过 35 个汉字。
+- 大多数回应必须严格服从主播要求：数字口令必须含主播要求的数字；选项互动只能从给定选项或"都喜欢/还没决定/都行"中回应；关键词互动必须含关键词。
+- 允许一条自然的不同意见或玩笑，但不能大多数都不服从。
+- 文案要有自然差异，不要完全重复。
+- 不编造商品事实、价格、库存、身份、礼物或真实直播数据。
+
+结构：{"responses":["1","111","扣1"]}
+"""
+
+
+def engagement_response_user_prompt(training, det, history_bullets, count) -> str:
+    lines = [
+        f"直播类型：{training.live_type}",
+        f"互动类型：{INTERACTION_LABELS.get(det.interaction_type, det.interaction_type)}",
+        f"主播要求回复：{det.requested_response}",
+        f"允许的回复形式：{det.allowed_response_form or '（未指定）'}",
+    ]
+    lines.append("")
+    lines.append("已出现弹幕（避免重复）：")
+    for b in (history_bullets or []):
+        lines.append(f"- {b.get('text') or ''}")
+    lines.append("")
+    lines.append(f"请生成 {count} 条符合要求的模拟观众回应。")
+    return "\n".join(lines)

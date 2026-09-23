@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeftRight, RefreshCw, RotateCcw, VideoOff } from 'lucide-react'
+import { ArrowLeftRight, Mic, RefreshCw, RotateCcw, VideoOff } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
@@ -37,6 +37,31 @@ function formatDate(value: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value))
+}
+
+function ReportMedia({ training }: { training: ApiTraining }) {
+  const media = training.media
+  if (media?.exists && media.media_kind === 'video') {
+    return <VideoPreview label="本次录像回看" src={recordingUrl(training.id)} controls />
+  }
+  if (media?.exists && media.media_kind === 'audio') {
+    return (
+      <div className="video-preview video-preview--audio">
+        <div className="video-preview__head">
+          <Mic size={18} /> 音频回放
+        </div>
+        <audio controls src={recordingUrl(training.id)} preload="metadata" style={{ width: '100%' }} />
+      </div>
+    )
+  }
+  return (
+    <div className="video-preview">
+      <div className="video-preview__placeholder">
+        <VideoOff size={30} strokeWidth={1.4} />
+        <span>本次练习没有可回放的媒体</span>
+      </div>
+    </div>
+  )
 }
 
 export default function ReportConnectedPage() {
@@ -174,7 +199,7 @@ export default function ReportConnectedPage() {
     <div className="page">
       <PageHeader
         title={report.training.goal}
-        subtitle={`${formatDate(report.training.finished_at ?? report.training.created_at)} · ${report.training.live_type} · 完整模拟`}
+        subtitle={`${formatDate(report.training.finished_at ?? report.training.created_at)} · ${report.training.live_type} · ${report.training.practice_mode === 'focus' ? '难点练习' : '完整模拟'}`}
         actions={
           <>
             {report.training.prev_training_id ? (
@@ -191,7 +216,7 @@ export default function ReportConnectedPage() {
 
       <div className="report-grid">
         <div className="report-main">
-          <VideoPreview label="本次录像回看" src={recordingUrl(report.training.id)} controls />
+          <ReportMedia training={report.training} />
           {report.issues.length > 0 ? (
             <div className="report-timeline-wrap mt-4">
               <div className="timeline" role="group" aria-label="问题标记时间轴">

@@ -3,6 +3,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 LIVE_TYPES = ("带货", "娱乐互动", "知识内容")
+PRACTICE_MODES = ("focus", "full")
+MEDIA_KINDS = ("video", "audio", "none")
 
 
 class TrainingCreate(BaseModel):
@@ -11,6 +13,10 @@ class TrainingCreate(BaseModel):
     topic: Optional[str] = Field(default=None, max_length=1000)
     product_info: Optional[str] = Field(default=None, max_length=1000)
     script: Optional[str] = Field(default=None, max_length=1000)
+    # 练习方式：focus（难点练习）/ full（完整模拟）
+    practice_mode: str = Field(default="full")
+    # 媒体模式：video（摄像头开启）/ audio（仅麦克风）/ none（无媒体）
+    media_kind: str = Field(default="video")
 
 
 class BulletIn(BaseModel):

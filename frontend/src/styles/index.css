@@ -797,6 +797,28 @@ video {
   50% { opacity: 0.35; }
 }
 
+/* 纯音频回放（无视频轨，不渲染黑色画面） */
+.video-preview--audio {
+  flex-direction: column;
+  gap: var(--space-2);
+  background: #15181d;
+}
+.video-preview--audio audio {
+  width: 100%;
+  margin-top: 4px;
+}
+.video-preview--audio > span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+}
+.video-preview__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 /* ---------- 时间轴 ---------- */
 .timeline {
   position: relative;

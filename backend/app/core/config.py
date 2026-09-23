@@ -69,6 +69,14 @@ class Settings:
         self.data_dir = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))
         self.recording_max_mb = int(os.getenv("RECORDING_MAX_MB", "1024"))
         self.practice_max_sec = int(os.getenv("PRACTICE_MAX_SEC", "1200"))
+        # 回应窗口（秒）：弹幕 display_at 后多久内的稳定转写片段视为有效回应。
+        # 仅用于事件统计（回应及时率/平均回应时间），不等同于语义质量评分。
+        self.response_window_sec = float(os.getenv("RESPONSE_WINDOW_SEC", "20"))
+        # 互动号召回应组：确定转写后首条回应最迟展示时间（秒）与窗口（秒）
+        self.engagement_first_delay_sec = float(
+            os.getenv("ENGAGEMENT_FIRST_DELAY_SEC", "2")
+        )
+        self.engagement_window_sec = float(os.getenv("ENGAGEMENT_WINDOW_SEC", "4"))
 
     def ensure_dirs(self) -> None:
         (self.data_dir / "recordings").mkdir(parents=True, exist_ok=True)

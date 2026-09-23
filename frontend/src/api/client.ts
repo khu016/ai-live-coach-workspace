@@ -7,9 +7,64 @@ export interface ApiTraining {
   script: string | null
   status: 'created' | 'recording' | 'saved' | 'analyzing' | 'feedback_ready' | 'failed'
   prev_training_id: number | null
+  practice_mode: 'focus' | 'full'
+  media_kind: 'video' | 'audio' | 'none'
   selected_must_cover_scenario_ids: string[]
   created_at: string | null
   finished_at: string | null
+  media?: ApiMedia | null
+}
+
+export interface ApiMedia {
+  exists: boolean
+  media_kind: 'video' | 'audio' | 'none'
+  mime_type: string | null
+  duration_sec: number | null
+  size_bytes: number | null
+}
+
+export interface ApiRecording {
+  recording_id: number
+  training_id: number
+  goal: string
+  live_type: string
+  practice_mode: string
+  media_kind: string
+  mime_type: string | null
+  duration_sec: number | null
+  size_bytes: number | null
+  exists: boolean
+  created_at: string | null
+}
+
+export interface WeekStats {
+  timezone: string
+  week: {
+    training_count: number
+    total_duration_sec: number
+    required_response_bullets: number
+    responded_bullets: number
+    timely_responded_bullets: number
+    response_rate: number | null
+    avg_response_sec: number | null
+    sample_sufficient: boolean
+    sample_count: number
+  }
+  previous_week: {
+    training_count: number
+    total_duration_sec: number
+    required_response_bullets: number
+    responded_bullets: number
+    timely_responded_bullets: number
+    response_rate: number | null
+    avg_response_sec: number | null
+    sample_sufficient: boolean
+    sample_count: number
+  }
+  change: {
+    training_count_delta?: number
+    response_rate_delta?: number
+  }
 }
 
 export interface ScriptBullet {
@@ -65,6 +120,8 @@ export interface CreateTrainingInput {
   topic?: string | null
   product_info?: string | null
   script?: string | null
+  practice_mode?: 'focus' | 'full'
+  media_kind?: 'video' | 'audio' | 'none'
 }
 
 export interface CreateTrainingResponse {
@@ -107,6 +164,26 @@ export async function getTraining(id: number): Promise<ApiTraining> {
   return data.training
 }
 
+export async function getTrainingMedia(id: number): Promise<ApiMedia> {
+  return request<ApiMedia>(`/api/v1/trainings/${id}/media`)
+}
+
+export function listTrainings(): Promise<ApiTraining[]> {
+  return request<{ trainings: ApiTraining[] }>('/api/v1/trainings').then((d) => d.trainings)
+}
+
+export function listRecordings(): Promise<ApiRecording[]> {
+  return request<{ recordings: ApiRecording[] }>('/api/v1/recordings').then((d) => d.recordings)
+}
+
+export function getWeekStats(): Promise<WeekStats> {
+  return request<WeekStats>('/api/v1/stats/week')
+}
+
+export function deleteTraining(id: number): Promise<{ deleted: boolean }> {
+  return request(`/api/v1/trainings/${id}`, { method: 'DELETE' })
+}
+
 export function getFeedback(id: number): Promise<FeedbackResponse> {
   return request(`/api/v1/trainings/${id}/feedback`)
 }
@@ -115,11 +192,15 @@ export async function finishTraining(
   id: number,
   recording: Blob,
   durationSec: number,
+  mediaKind: 'video' | 'audio' | 'none' = 'video',
 ): Promise<ApiTraining> {
   const form = new FormData()
-  form.append('file', recording, 'recording.webm')
+  form.append('file', recording, mediaKind === 'audio' ? 'recording.webm' : 'recording.webm')
   form.append('bullets', '[]')
   form.append('duration_sec', String(durationSec))
+  form.append('media_kind', mediaKind)
+  if (mediaKind === 'audio') form.append('mime_type', recording.type || 'audio/webm')
+  else form.append('mime_type', recording.type || 'video/webm')
   const data = await request<{ training: ApiTraining }>(`/api/v1/trainings/${id}/finish`, {
     method: 'POST',
     body: form,
