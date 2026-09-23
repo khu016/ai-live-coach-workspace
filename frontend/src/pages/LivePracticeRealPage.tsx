@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Camera, CameraOff, Mic, MicOff, Pause, Play, Square } from 'lucide-react'
+import { Camera, CameraOff, Lightbulb, Mic, MicOff, Pause, Play, Square } from 'lucide-react'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { IconButton } from '../components/IconButton'
@@ -8,7 +8,7 @@ import { Modal } from '../components/Modal'
 import { StatusTag } from '../components/StatusTag'
 import { VideoPreview } from '../components/VideoPreview'
 import { useApp } from '../store/AppContext'
-import { formatSec, type Bullet, type BulletCategory } from '../data/mock'
+import { focusSessions, formatSec, type Bullet, type BulletCategory } from '../data/mock'
 import {
   finishTraining,
   getTraining,
@@ -92,6 +92,8 @@ export default function LivePracticeRealPage() {
   const { draft, showToast } = useApp()
   const trainingId = Number(searchParams.get('trainingId'))
   const mode = searchParams.get('mode') === 'focus' ? 'focus' : 'full'
+  const topic = searchParams.get('topic')
+  const focusSession = topic ? focusSessions[topic] : undefined
 
   const [training, setTraining] = useState<ApiTraining | null>(null)
   const [status, setStatus] = useState<LiveStatus>('idle')
@@ -105,6 +107,7 @@ export default function LivePracticeRealPage() {
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null)
   const [loadError, setLoadError] = useState('')
   const [asrMessage, setAsrMessage] = useState('')
+  const [hintIndex, setHintIndex] = useState(0)
 
   const elapsedRef = useRef(0)
   const statusRef = useRef<LiveStatus>('idle')
@@ -115,6 +118,8 @@ export default function LivePracticeRealPage() {
   const recorderChunksRef = useRef<Blob[]>([])
   const pcmRef = useRef<PcmStreamer | null>(null)
   const mediaKindRef = useRef<'video' | 'audio'>('video')
+  const bulletsRef = useRef<HTMLDivElement>(null)
+  const transcriptRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     statusRef.current = status
@@ -147,6 +152,26 @@ export default function LivePracticeRealPage() {
     }, 1000)
     return () => window.clearInterval(timer)
   }, [status])
+
+  // 难点练习：练习中轻量轮换提示，不打断表达节奏
+  useEffect(() => {
+    if (status !== 'running' || !focusSession) return
+    const timer = window.setInterval(() => {
+      setHintIndex((i) => (i + 1) % focusSession.hints.length)
+    }, 8000)
+    return () => window.clearInterval(timer)
+  }, [status, focusSession])
+
+  // 新弹幕/转写到达时自动滚动到底部
+  useEffect(() => {
+    const el = bulletsRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [bullets])
+
+  useEffect(() => {
+    const el = transcriptRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [transcripts, partialTranscript])
 
   useEffect(() => {
     return () => {
@@ -379,6 +404,35 @@ export default function LivePracticeRealPage() {
 
       {loadError && training ? <p className="live-error mb-4">{loadError}</p> : null}
 
+      {mode === 'focus' && focusSession ? (
+        <div className="focus-card mb-4">
+          <div className="focus-question">
+            <span className="focus-question__label">本次练习目标</span>
+            <p className="focus-question__text">{focusSession.question}</p>
+          </div>
+          <div className="focus-hints">
+            {focusSession.hints.map((h, i) => (
+              <span
+                key={h}
+                className={
+                  i === hintIndex && isRunning
+                    ? 'focus-hint focus-hint--active'
+                    : 'focus-hint'
+                }
+              >
+                {i === hintIndex && isRunning && (
+                  <Lightbulb size={12} aria-hidden className="focus-hint__icon" />
+                )}
+                {h}
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-tertiary">
+            针对单一难点短练，提示仅在练习中轻量出现。
+          </p>
+        </div>
+      ) : null}
+
       <div className="live-grid">
         <div className="live-stage">
           {cameraOn ? (
@@ -430,7 +484,7 @@ export default function LivePracticeRealPage() {
               <span className="medium">模拟观众弹幕</span>
               <span className="text-xs text-tertiary">{bullets.length} 条</span>
             </div>
-            <div className="live-panel__body" aria-live="polite">
+            <div className="live-panel__body" aria-live="polite" ref={bulletsRef}>
               {bullets.length === 0 ? (
                 <p className="text-sm text-tertiary">开始后，模拟观众会根据你的表达陆续发来弹幕。</p>
               ) : bullets.map((bullet) => (
@@ -451,7 +505,7 @@ export default function LivePracticeRealPage() {
                 {isRunning && micOn ? '识别中' : micOn ? statusLabel : '已静音'}
               </StatusTag>
             </div>
-            <div className="live-panel__body" aria-live="polite">
+            <div className="live-panel__body" aria-live="polite" ref={transcriptRef}>
               {asrMessage ? <p className="text-sm text-danger">{asrMessage}</p> : null}
               {transcripts.length === 0 && !partialTranscript ? (
                 <p className="text-sm text-tertiary">开始后，你说的话会通过后端实时转写。</p>

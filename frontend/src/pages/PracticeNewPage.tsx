@@ -108,7 +108,9 @@ export default function PracticeNewPage() {
       })
       saveTrainingScript(result.training.id, result.script)
       resetPreview()
-      navigate(`/practice/live?trainingId=${result.training.id}${mode === 'focus' ? '&mode=focus' : ''}`)
+      const query = `trainingId=${result.training.id}`
+        + (mode === 'focus' ? `&mode=focus&topic=${encodeURIComponent(topic)}` : '')
+      navigate(`/practice/live?${query}`)
     } catch (error) {
       showToast(error instanceof Error ? error.message : '创建练习失败', 'error')
       setStarting(false)
