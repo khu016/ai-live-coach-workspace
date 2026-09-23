@@ -22,20 +22,38 @@ AI 主播陪练 Agent 的独立项目目录。项目文件路径均以本目录�
 
 ### 环境要求
 - Python 3.12（项目用 uv 管理）；uv 已装到 `~/.local/bin/uv`，缺失时 `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Node.js 20 或更高版本
 - 最新版 Chrome / Edge（需摄像头、麦克风）
 
 ### 安装依赖
 ```bash
 cd AI主播陪练开发
 uv sync
+cd frontend
+npm install
 ```
 
-### 启动
+### 启动后端
+
+在第一个终端运行：
+
 ```bash
 cd AI主播陪练开发
 PYTHONPATH=backend uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
-浏览器打开 http://127.0.0.1:8001/ （验收页）。端口 8000 被其他项目占用，默认用 8001。
+
+后端服务地址为 http://127.0.0.1:8001；接口文档为 http://127.0.0.1:8001/docs。根地址 `/` 保留为旧验收页，不是正式产品入口。
+
+### 启动正式前端
+
+保持后端终端运行，在第二个终端运行：
+
+```bash
+cd AI主播陪练开发/frontend
+npm run dev
+```
+
+浏览器打开 **http://localhost:5173**。这是当前正式产品入口；Vite 会将 `/api` 和实时 WebSocket 请求代理到本机 8001 端口的后端。
 
 ### 运行测试
 ```bash
