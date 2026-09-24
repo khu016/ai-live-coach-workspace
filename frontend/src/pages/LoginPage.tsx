@@ -52,11 +52,11 @@ export default function LoginPage() {
       <div className="login-card">
         <div className="login-brand">
           <span className="login-brand__logo" aria-hidden>
-            播
+            N
           </span>
           <div>
-            <h1 className="login-brand__title">AI 主播陪练</h1>
-            <p className="login-brand__subtitle">在开播前，安全地反复练习表达与互动</p>
+            <h1 className="login-brand__title">NIVI</h1>
+            <p className="login-brand__subtitle">AI 主播陪练 · 在开播前练习表达与互动</p>
           </div>
         </div>
 

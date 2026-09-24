@@ -41,8 +41,9 @@
   font-weight: 700;
 }
 .login-brand__title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 21px;
+  font-weight: 780;
+  letter-spacing: .08em;
 }
 .login-brand__subtitle {
   font-size: 12px;

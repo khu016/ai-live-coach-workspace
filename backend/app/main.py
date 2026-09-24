@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="AI 主播陪练", lifespan=lifespan)
+app = FastAPI(title="NIVI｜AI 主播陪练", lifespan=lifespan)
 
 
 @app.exception_handler(AppError)

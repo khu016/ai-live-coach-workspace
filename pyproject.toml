@@ -1,7 +1,7 @@
 [project]
 name = "ai-anchor-coach"
 version = "0.1.0"
-description = "AI 主播陪练 - 后端 MVP 纵向切片"
+description = "NIVI AI 主播陪练 - 后端 MVP 纵向切片"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

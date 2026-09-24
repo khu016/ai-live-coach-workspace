@@ -951,9 +951,13 @@ video {
   filter: drop-shadow(0 5px 8px rgba(5, 139, 149, .12));
 }
 .topnav__brand-name {
-  font-weight: 750;
-  letter-spacing: -.02em;
+  font-size: 20px;
+  font-weight: 780;
+  line-height: 1;
+  letter-spacing: .08em;
 }
+.topnav__brand-copy { display: flex; flex-direction: column; gap: 3px; }
+.topnav__brand-subtitle { color: var(--text-tertiary); font-size: 10px; font-weight: 600; line-height: 1; letter-spacing: .08em; white-space: nowrap; }
 .topnav__nav {
   display: flex;
   align-items: center;

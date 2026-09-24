@@ -23,7 +23,7 @@ export function TopNavigation() {
   return (
     <header className="topnav">
       <div className="topnav__inner">
-        <NavLink to="/" className="topnav__brand" aria-label="AI 主播陪练首页">
+        <NavLink to="/" className="topnav__brand" aria-label="NIVI AI 主播陪练首页">
           <img
             className="topnav__logo"
             src="/assets/ai-coach-logo.png"
@@ -33,7 +33,10 @@ export function TopNavigation() {
             aria-hidden="true"
             draggable="false"
           />
-          <span className="topnav__brand-name">AI 主播陪练</span>
+          <span className="topnav__brand-copy">
+            <strong className="topnav__brand-name">NIVI</strong>
+            <small className="topnav__brand-subtitle">AI 主播陪练</small>
+          </span>
         </NavLink>
         <nav className="topnav__nav" aria-label="主导航">
           {NAV.map((item) => (
