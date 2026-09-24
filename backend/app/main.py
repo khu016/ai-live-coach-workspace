@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api import realtime, trainings
+from .api import realtime, trainings, tutorials
 from .core.errors import AppError
 from .db import SessionLocal, engine, run_migrations
 from .models import Base, Training
@@ -57,4 +57,23 @@ async def content_library_error_handler(request: Request, exc: ContentLibraryErr
 
 app.include_router(trainings.router, prefix="/api/v1")
 app.include_router(realtime.router, prefix="/api/v1")
-app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+app.include_router(tutorials.router, prefix="/api/v1")
+
+ASSETS_DIR = STATIC_DIR / "assets"
+if ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def serve_frontend(full_path: str):
+    """生产模式统一从后端地址提供 React，并支持前端路由刷新。"""
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="接口不存在")
+    requested = (STATIC_DIR / full_path).resolve()
+    static_root = STATIC_DIR.resolve()
+    if full_path and requested.is_file() and static_root in requested.parents:
+        return FileResponse(requested)
+    index = STATIC_DIR / "index.html"
+    if not index.exists():
+        raise HTTPException(status_code=503, detail="前端尚未构建")
+    return FileResponse(index)

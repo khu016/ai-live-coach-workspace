@@ -5,16 +5,17 @@
 __pycache__/
 .pytest_cache/
 .ruff_cache/
-data/
+/data/
 .backups/
 .DS_Store
 
 # 前端（React）
 frontend/node_modules/
 frontend/dist/
+!frontend/src/data/
+!frontend/src/data/mock.ts
 
-# 内容库随后端发布，纳入版本管理；其余 data/ 均为运行时数据，仍忽略
+# 内容库随后端发布，纳入版本管理；项目根目录 data/ 为运行时数据，仍忽略
 !backend/app/data/
 backend/app/data/*
 !backend/app/data/content_library/
-

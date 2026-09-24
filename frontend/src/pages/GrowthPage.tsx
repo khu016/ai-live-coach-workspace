@@ -5,7 +5,7 @@ import { PageHeader } from '../components/PageHeader'
 import { Card } from '../components/Card'
 import { MetricCard } from '../components/MetricCard'
 import { StatusTag } from '../components/StatusTag'
-import { listTrainings, type ApiTraining } from '../api/client'
+import { getTutorials, listTrainings, type ApiTraining, type TutorialProgressSummary } from '../api/client'
 
 const TYPE_OPTIONS = ['全部', '带货', '娱乐互动', '知识内容'] as const
 
@@ -27,12 +27,18 @@ function minutesOf(sec: number | null): string {
 export default function GrowthPage() {
   const navigate = useNavigate()
   const [records, setRecords] = useState<ApiTraining[]>([])
+  const [tutorialProgress, setTutorialProgress] = useState<TutorialProgressSummary>({ completed_ids: [], completed_count: 0, total: 0 })
   const [type, setType] = useState<(typeof TYPE_OPTIONS)[number]>('全部')
 
   useEffect(() => {
     let cancelled = false
-    void listTrainings()
-      .then((list) => { if (!cancelled) setRecords(list) })
+    void Promise.all([listTrainings(), getTutorials()])
+      .then(([list, catalog]) => {
+        if (!cancelled) {
+          setRecords(list)
+          setTutorialProgress(catalog.progress)
+        }
+      })
       .catch(() => {})
     return () => { cancelled = true }
   }, [])
@@ -51,7 +57,7 @@ export default function GrowthPage() {
       <div className="metric-grid">
         <MetricCard label="累计练习" value={totalCount} unit="场" hint="来自真实训练记录" />
         <MetricCard label="累计时长" value={Math.round(totalDuration / 60)} unit="分钟" hint="已保存媒体时长之和" brand />
-        <MetricCard label="本周完成" value={records.filter((t) => t.practice_mode === 'focus').length} unit="场" hint="难点练习场次" />
+        <MetricCard label="教程进度" value={tutorialProgress.completed_count} unit={`/ ${tutorialProgress.total} 节`} hint="后端保存的学习记录" />
       </div>
 
       <div className="growth-main mt-6">
@@ -85,6 +91,7 @@ export default function GrowthPage() {
           <small>累计已完成</small>
           <b>{totalCount} <i>场</i></b>
           <p>练习记录与时长均来自后端持久化训练，不使用演示数字。</p>
+          <button className="text-link mt-3" onClick={() => navigate('/tutorials')}>继续学习教程 <ChevronRight size={14} aria-hidden /></button>
         </aside>
       </div>
 

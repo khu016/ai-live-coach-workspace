@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -111,6 +111,21 @@ class Feedback(Base):
     issues = Column(JSON, nullable=False, default=list)
     top_issue_ids = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, default=now)
+
+
+class TutorialProgress(Base):
+    """个人主播的教程学习进度。第一版固定使用 user_id=1。"""
+
+    __tablename__ = "tutorial_progress"
+    __table_args__ = (UniqueConstraint("user_id", "tutorial_id", name="uq_tutorial_progress_user"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False, default=1, index=True)
+    tutorial_id = Column(String(64), nullable=False, index=True)
+    completed = Column(Boolean, nullable=False, default=False)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=now, onupdate=now)
 
 
 class EngagementCall(Base):

@@ -129,6 +129,42 @@ export interface CreateTrainingResponse {
   script: ScriptBullet[]
 }
 
+export interface TutorialStep {
+  title: string
+  detail: string
+}
+
+export interface ApiTutorial {
+  id: string
+  title: string
+  category: string
+  durationMin: number
+  level: string
+  description: string
+  tags: string[]
+  objective: string
+  whenToUse: string[]
+  steps: TutorialStep[]
+  badExample: string
+  goodExample: string
+  mistakes: string[]
+  checklist: string[]
+  practiceTopic: string
+  ruleRefs: string[]
+  reviewStatus: 'pending_teacher_review'
+}
+
+export interface TutorialProgressSummary {
+  completed_ids: string[]
+  completed_count: number
+  total: number
+}
+
+export interface TutorialCatalogResponse {
+  tutorials: ApiTutorial[]
+  progress: TutorialProgressSummary
+}
+
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 function apiUrl(path: string): string {
@@ -178,6 +214,30 @@ export function listRecordings(): Promise<ApiRecording[]> {
 
 export function getWeekStats(): Promise<WeekStats> {
   return request<WeekStats>('/api/v1/stats/week')
+}
+
+export function getTutorials(): Promise<TutorialCatalogResponse> {
+  return request('/api/v1/tutorials')
+}
+
+export function getTutorial(id: string): Promise<{ tutorial: ApiTutorial; completed: boolean }> {
+  return request(`/api/v1/tutorials/${encodeURIComponent(id)}`)
+}
+
+export function updateTutorialProgress(id: string, completed: boolean): Promise<{
+  progress: { tutorial_id: string; completed: boolean; completed_at: string | null }
+  summary: TutorialProgressSummary
+}> {
+  return request(`/api/v1/tutorials/${encodeURIComponent(id)}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed }),
+  })
+}
+
+export function getTutorialRecommendations(trainingId: number): Promise<ApiTutorial[]> {
+  return request<{ tutorials: ApiTutorial[] }>(`/api/v1/tutorials/recommendations/${trainingId}`)
+    .then((data) => data.tutorials)
 }
 
 export function deleteTraining(id: number): Promise<{ deleted: boolean }> {

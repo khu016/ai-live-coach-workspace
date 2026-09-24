@@ -33,18 +33,25 @@ cd frontend
 npm install
 ```
 
-### 启动后端
+### 启动完整产品（一个链接）
 
-在第一个终端运行：
+首次运行或前端有更新时先构建一次：
+
+```bash
+cd AI主播陪练开发/frontend
+npm run build
+```
+
+随后启动后端：
 
 ```bash
 cd AI主播陪练开发
 PYTHONPATH=backend uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
 
-后端服务地址为 http://127.0.0.1:8001；接口文档为 http://127.0.0.1:8001/docs。根地址 `/` 保留为旧验收页，不是正式产品入口。
+浏览器只需打开 **http://127.0.0.1:8001**。首页、教程、练习、报告和成长记录都由这一地址提供；接口文档为 http://127.0.0.1:8001/docs。教程详情等前端地址可以直接刷新，不会再与后端分离。
 
-### 启动正式前端
+### 前端开发模式（修改页面时使用）
 
 保持后端终端运行，在第二个终端运行：
 
@@ -53,19 +60,19 @@ cd AI主播陪练开发/frontend
 npm run dev
 ```
 
-浏览器打开 **http://localhost:5173**。这是当前正式产品入口；Vite 会将 `/api` 和实时 WebSocket 请求代理到本机 8001 端口的后端。
+浏览器打开 **http://localhost:5173**。Vite 会将 `/api` 和实时 WebSocket 请求代理到本机 8001 端口；开发完成后重新执行 `npm run build`，即可在统一的 8001 地址看到最新页面。
 
 ### 运行测试
 ```bash
 cd AI主播陪练开发
-uv run pytest      # 131 项 mock 测试（含 12 项互动号召回归 + 14 项媒体/统计）
+uv run pytest      # 135 项测试（含教程接口、学习进度、报告推荐与统一入口）
 ```
 
 ### 内容库
 弹幕与反馈由内容库驱动。内容库文件位于 `backend/app/data/content_library/`
 （`scenario_cards.jsonl` 84 张场景卡（含 30 张刁难）、`teaching_rules.jsonl` 20 张规则卡、
 `ambient_bullets.jsonl` 90 张环境弹幕（无关/路人/噪声各 30）、`source_registry.json`、
-`manifest.json`），随后端发布，不依赖外部绝对路径。
+`manifest.json`、`tutorials.json` 9 节文字微课），随后端发布，不依赖外部绝对路径。
 加载服务见 `backend/app/services/content_library.py`（内存索引筛选，无向量检索）；
 环境弹幕与统一调度见 `backend/app/services/ambient_bullets.py`。
 
@@ -85,7 +92,7 @@ TENCENT_ASR_SECRET_KEY=<腾讯云 SecretKey>
 
 ## 前端（React）
 
-正式 React 前端位于 `frontend/`。完整模拟直播与难点练习共用真实训练链路：创建练习、摄像头（可选）/麦克风（必需）、PCM 16kHz WebSocket 实时转写、动态弹幕、互动号召回应、MediaRecorder 录像（视频或音频）上传、真实反馈报告与重练对比。首页（本周训练/互动节奏）、成长记录、录像管理均读取后端真实数据，样本不足时显示"数据不足"。教程、个人资料与登录仍使用 `src/data/mock.ts` 中的模拟数据，已明确标记。
+正式 React 前端位于 `frontend/`。完整模拟直播与难点练习共用真实训练链路：创建练习、摄像头（可选）/麦克风（必需）、PCM 16kHz WebSocket 实时转写、动态弹幕、互动号召回应、MediaRecorder 录像（视频或音频）上传、真实反馈报告与重练对比。首页（本周训练/互动节奏）、成长记录、录像管理均读取后端真实数据，样本不足时显示"数据不足"。教程中心的 9 节微课由后端内容库统一提供，学习状态保存到数据库；训练报告会按实际问题推荐教程，教程可直接进入对应难点练习，成长页显示真实学习进度。教程初稿依据项目规则卡整理并标记为待老师复核。个人资料与登录仍使用 `src/data/mock.ts` 中的模拟数据，已明确标记。
 
 技术栈：React + Vite + TypeScript + React Router + Lucide React + 普通 CSS（设计变量见 `src/styles/index.css`）。
 
@@ -100,7 +107,7 @@ npm run preview    # 预览生产构建
 
 本地联调时先按上文启动 FastAPI（默认 `127.0.0.1:8001`），再启动 Vite。Vite 会把 `/api` 与 WebSocket 代理到后端；若隔离测试后端使用其他端口，可在启动前设置 `VITE_PROXY_TARGET`。
 
-页面路由：`/login` 登录 · `/` 首页 · `/tutorials` 教程中心 · `/practice/new` 创建练习与设备检测 · `/practice/live` 完整模拟直播/难点练习 · `/practice/focus` 难点练习（重定向到创建页） · `/reports/:id` 训练报告 · `/practice/:id/compare` 重练对比 · `/growth` 成长记录 · `/recordings` 录像管理 · `/profile` 个人中心。
+页面路由：`/login` 登录 · `/` 首页 · `/tutorials` 教程中心 · `/tutorials/:id` 教程详情 · `/practice/new` 创建练习与设备检测 · `/practice/live` 完整模拟直播/难点练习 · `/practice/focus` 难点练习（重定向到创建页） · `/reports/:id` 训练报告 · `/practice/:id/compare` 重练对比 · `/growth` 成长记录 · `/recordings` 录像管理 · `/profile` 个人中心。
 
 ## 媒体模式与互动号召
 - 麦克风为语音训练必需，摄像头可选；摄像头关闭时只申请音频轨道、保存音频回放（`media_kind=audio`），报告页显示音频播放器。

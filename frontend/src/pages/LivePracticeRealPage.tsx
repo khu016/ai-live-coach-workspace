@@ -49,6 +49,16 @@ const CATEGORY_MAP: Record<string, BulletCategory> = {
   engagement: '话题',
 }
 
+const DEBUG_TAG_LABELS: Record<BulletCategory, string> = {
+  必考: '必考问题',
+  追问: 'AI 动态弹幕',
+  刁难: '刁难弹幕',
+  无关: '无关弹幕',
+  路人: '路人弹幕',
+  噪声: '直播间噪声',
+  话题: '互动回应',
+}
+
 function categoryOf(value?: string | null): BulletCategory {
   return CATEGORY_MAP[value ?? ''] ?? '话题'
 }
@@ -108,6 +118,8 @@ export default function LivePracticeRealPage() {
   const [loadError, setLoadError] = useState('')
   const [asrMessage, setAsrMessage] = useState('')
   const [hintIndex, setHintIndex] = useState(0)
+  // 调试标签只在本次训练页内生效，正式训练默认关闭且不持久化。
+  const [debugTags, setDebugTags] = useState(false)
 
   const elapsedRef = useRef(0)
   const statusRef = useRef<LiveStatus>('idle')
@@ -482,6 +494,10 @@ export default function LivePracticeRealPage() {
           <div className="live-panel">
             <div className="live-panel__head">
               <span className="medium">模拟观众弹幕</span>
+              <label className="debug-tag-toggle text-xs text-tertiary">
+                <input type="checkbox" checked={debugTags} onChange={(event) => setDebugTags(event.target.checked)} />
+                显示调试标签
+              </label>
               <span className="text-xs text-tertiary">{bullets.length} 条</span>
             </div>
             <div className="live-panel__body" aria-live="polite" ref={bulletsRef}>
@@ -490,6 +506,7 @@ export default function LivePracticeRealPage() {
               ) : bullets.map((bullet) => (
                 <div key={bullet.id} className="bullet">
                   <span className="bullet__meta">
+                    {debugTags ? <StatusTag tone={bullet.category === '刁难' ? 'warning' : bullet.category === '必考' || bullet.category === '追问' ? 'brand' : 'neutral'}>{DEBUG_TAG_LABELS[bullet.category]}</StatusTag> : null}
                     <span className="text-xs text-tertiary">模拟观众 · {formatSec(bullet.atSec)}</span>
                   </span>
                   <span>{bullet.text}</span>

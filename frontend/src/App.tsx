@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell'
 import LoginPage from './pages/LoginPage'
 import HomePage from './pages/HomePage'
 import TutorialsPage from './pages/TutorialsPage'
+import TutorialDetailPage from './pages/TutorialDetailPage'
 import PracticeNewPage from './pages/PracticeNewPage'
 import LivePracticePage from './pages/LivePracticeRealPage'
 import FocusPracticePage from './pages/FocusPracticePage'
@@ -25,6 +26,7 @@ export default function App() {
       >
         <Route path="/" element={<HomePage />} />
         <Route path="/tutorials" element={<TutorialsPage />} />
+        <Route path="/tutorials/:id" element={<TutorialDetailPage />} />
         <Route path="/practice/new" element={<PracticeNewPage />} />
         <Route path="/practice/live" element={<LivePracticePage />} />
         <Route path="/practice/focus" element={<FocusPracticePage />} />

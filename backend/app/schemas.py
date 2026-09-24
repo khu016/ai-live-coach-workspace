@@ -52,3 +52,7 @@ class Issue(BaseModel):
 class FeedbackOut(BaseModel):
     issues: List[Issue]
     top_issue_ids: List[int]
+
+
+class TutorialProgressUpdate(BaseModel):
+    completed: bool

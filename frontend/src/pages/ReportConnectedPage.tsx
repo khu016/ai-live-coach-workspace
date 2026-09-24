@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeftRight, Mic, RefreshCw, RotateCcw, VideoOff } from 'lucide-react'
+import { ArrowLeftRight, BookOpen, ChevronRight, Mic, RefreshCw, RotateCcw, VideoOff } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
@@ -11,6 +11,7 @@ import { EmptyState } from '../components/EmptyState'
 import { formatSec } from '../data/mock'
 import {
   getFeedback,
+  getTutorialRecommendations,
   getTraining,
   recordingUrl,
   retrain,
@@ -18,6 +19,7 @@ import {
   saveTrainingScript,
   type ApiIssue,
   type ApiTraining,
+  type ApiTutorial,
 } from '../api/client'
 import { useApp } from '../store/AppContext'
 import LegacyReportPage from './ReportPage'
@@ -74,6 +76,7 @@ export default function ReportConnectedPage() {
   const [error, setError] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [actionBusy, setActionBusy] = useState(false)
+  const [recommendedTutorials, setRecommendedTutorials] = useState<ApiTutorial[]>([])
 
   const isBackendReport = Number.isInteger(numericId) && numericId > 0
 
@@ -95,6 +98,9 @@ export default function ReportConnectedPage() {
             issues: feedback.feedback.issues,
             topIssueIds: feedback.feedback.top_issue_ids,
           })
+          void getTutorialRecommendations(numericId)
+            .then((tutorials) => { if (!cancelled) setRecommendedTutorials(tutorials) })
+            .catch(() => { if (!cancelled) setRecommendedTutorials([]) })
           setError('')
           return
         }
@@ -287,6 +293,21 @@ export default function ReportConnectedPage() {
               </div>
             )}
           </div>
+
+          {recommendedTutorials.length > 0 ? (
+            <div className="mt-4">
+              <h3 className="text-lg semibold mb-3">针对本次问题，建议先学</h3>
+              <div className="report-tutorial-list">
+                {recommendedTutorials.map((tutorial) => (
+                  <button key={tutorial.id} className="report-tutorial-item" onClick={() => navigate(`/tutorials/${tutorial.id}`)}>
+                    <span className="report-tutorial-item__icon"><BookOpen size={18} aria-hidden /></span>
+                    <span><strong>{tutorial.title}</strong><small>{tutorial.durationMin} 分钟 · 学完可直接进入“{tutorial.practiceTopic}”练习</small></span>
+                    <ChevronRight size={16} aria-hidden />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

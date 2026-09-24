@@ -1,155 +1,106 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { BookOpen, Clock, Search, SearchX } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Search, SearchX } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { FilterBar } from '../components/FilterBar'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { StatusTag } from '../components/StatusTag'
 import { EmptyState } from '../components/EmptyState'
-import { Modal } from '../components/Modal'
-import { useApp } from '../store/AppContext'
-import { tutorials, TUTORIAL_CATEGORIES, type Tutorial } from '../data/mock'
+import { getTutorials, type ApiTutorial } from '../api/client'
+import { tutorialSearchText, TUTORIAL_CATEGORIES } from '../content/tutorials'
 
 export default function TutorialsPage() {
-  const { showToast } = useApp()
   const [searchParams] = useSearchParams()
   const [category, setCategory] = useState('全部')
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
-  const [active, setActive] = useState<Tutorial | null>(null)
-  const [learning, setLearning] = useState(false)
+  const [tutorials, setTutorials] = useState<ApiTutorial[]>([])
+  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     setQuery(searchParams.get('q') ?? '')
   }, [searchParams])
 
-  const filtered = useMemo(() => {
-    return tutorials.filter((t) => {
-      const matchCategory = category === '全部' || t.category === category
-      const q = query.trim().toLowerCase()
-      const matchQuery =
-        !q || t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)
-      return matchCategory && matchQuery
-    })
-  }, [category, query])
+  useEffect(() => {
+    let cancelled = false
+    void getTutorials()
+      .then((data) => {
+        if (cancelled) return
+        setTutorials(data.tutorials)
+        setCompletedIds(new Set(data.progress.completed_ids))
+        setError('')
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : '教程读取失败')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
-  const openDetail = (t: Tutorial) => {
-    setActive(t)
-    setLearning(false)
-  }
+  const filtered = useMemo(() => tutorials.filter((tutorial) => {
+    const matchCategory = category === '全部' || tutorial.category === category
+    const normalizedQuery = query.trim().toLowerCase()
+    return matchCategory && (!normalizedQuery || tutorialSearchText(tutorial).includes(normalizedQuery))
+  }), [category, query, tutorials])
+
+  const completedCount = tutorials.filter((tutorial) => completedIds.has(tutorial.id)).length
 
   return (
     <div className="page">
-      <PageHeader title="教程中心" subtitle="先学方法，再进入练习；教程不强制、可随时跳过。" />
+      <PageHeader title="教程中心" subtitle="先学一个具体方法，再进入对应练习。教程可以随时跳过。" />
+
+      <section className="tutorial-overview" aria-label="学习进度">
+        <div><BookOpen size={20} aria-hidden /><span><strong>{tutorials.length}</strong> 节文字微课</span></div>
+        <div className="tutorial-progress">
+          <span>已学完 {completedCount} 节</span>
+          <div aria-hidden><i style={{ width: `${tutorials.length ? (completedCount / tutorials.length) * 100 : 0}%` }} /></div>
+        </div>
+      </section>
 
       <div className="toolbar">
         <div className="search">
           <Search size={16} className="text-tertiary" aria-hidden />
-          <input
-            className="search__input"
-            type="search"
-            placeholder="搜索教程，例如：开场、报价、冷场"
-            aria-label="搜索教程"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <input className="search__input" type="search" placeholder="搜索开场、报价、冷场或弹幕应答" aria-label="搜索教程" value={query} onChange={(event) => setQuery(event.target.value)} />
         </div>
       </div>
 
       <div className="mt-4">
-        <FilterBar
-          options={TUTORIAL_CATEGORIES}
-          value={category}
-          onChange={setCategory}
-          label="教程分类"
-        />
+        <FilterBar options={TUTORIAL_CATEGORIES} value={category} onChange={setCategory} label="教程分类" />
       </div>
 
       <div className="mt-6">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <Card><p className="text-sm text-secondary">正在从后端读取教程…</p></Card>
+        ) : error ? (
+          <Card><EmptyState icon={<SearchX size={22} aria-hidden />} title="教程暂时无法读取" description={error} /></Card>
+        ) : filtered.length === 0 ? (
           <Card>
-            <EmptyState
-              icon={<SearchX size={22} aria-hidden />}
-              title="没有找到相关教程"
-              description="换个关键词，或切换到其他分类试试。"
-              action={
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setQuery('')
-                    setCategory('全部')
-                  }}
-                >
-                  清除筛选
-                </Button>
-              }
-            />
+            <EmptyState icon={<SearchX size={22} aria-hidden />} title="没有找到相关教程" description="换个关键词，或切换到其他分类试试。" action={<Button variant="secondary" onClick={() => { setQuery(''); setCategory('全部') }}>清除筛选</Button>} />
           </Card>
         ) : (
           <div className="tutorial-grid">
-            {filtered.map((t) => (
-              <button key={t.id} className="tutorial-card" onClick={() => openDetail(t)}>
-                <span className="tutorial-card__thumb">
-                  <BookOpen size={22} aria-hidden />
-                </span>
-                <span className="tutorial-card__body">
-                  <span className="tutorial-card__title">{t.title}</span>
-                  <span className="tutorial-card__desc">{t.description}</span>
-                  <span className="tutorial-card__meta">
-                    <StatusTag tone="brand">{t.category}</StatusTag>
-                    <span className="text-xs text-tertiary">
-                      <Clock size={12} aria-hidden /> {t.durationMin} 分钟 · {t.level}
+            {filtered.map((tutorial) => {
+              const completed = completedIds.has(tutorial.id)
+              return (
+                <Link key={tutorial.id} className="tutorial-card" to={`/tutorials/${tutorial.id}`} aria-label={`查看教程 ${tutorial.title}`}>
+                  <span className="tutorial-card__thumb">{completed ? <CheckCircle2 size={22} aria-hidden /> : <BookOpen size={22} aria-hidden />}</span>
+                  <span className="tutorial-card__body">
+                    <span className="tutorial-card__title">{tutorial.title}</span>
+                    <span className="tutorial-card__desc">{tutorial.description}</span>
+                    <span className="tutorial-card__meta">
+                      <StatusTag tone={completed ? 'success' : 'brand'}>{completed ? '已学完' : tutorial.category}</StatusTag>
+                      <span className="text-xs text-tertiary"><Clock size={12} aria-hidden /> {tutorial.durationMin} 分钟 · {tutorial.level}</span>
                     </span>
                   </span>
-                </span>
-              </button>
-            ))}
+                  <ArrowRight className="tutorial-card__arrow" size={18} aria-hidden />
+                </Link>
+              )
+            })}
           </div>
         )}
       </div>
-
-      <Modal
-        open={active !== null}
-        title={active?.title}
-        onClose={() => setActive(null)}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setActive(null)}>
-              关闭
-            </Button>
-            <Button
-              onClick={() => {
-                setLearning(true)
-                showToast('开始学习：' + active?.title, 'success')
-              }}
-            >
-              {learning ? '学习中…' : '开始学习'}
-            </Button>
-          </>
-        }
-      >
-        {active && (
-          <div className="tutorial-detail">
-            <p>{active.description}</p>
-            <div className="row gap-3 wrap mt-3">
-              <StatusTag tone="brand">{active.category}</StatusTag>
-              <StatusTag tone="neutral">{active.level}</StatusTag>
-              <StatusTag tone="neutral">{active.durationMin} 分钟</StatusTag>
-              <StatusTag tone="neutral">{active.views} 次学习</StatusTag>
-            </div>
-            <div className="row gap-2 wrap mt-3">
-              {active.tags.map((tag) => (
-                <span key={tag} className="tag-pill">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-            {learning && (
-              <p className="mt-3 text-brand text-sm">已进入学习状态（模拟），可随时返回继续练习。</p>
-            )}
-          </div>
-        )}
-      </Modal>
     </div>
   )
 }
