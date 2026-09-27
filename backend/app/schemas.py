@@ -7,6 +7,11 @@ PRACTICE_MODES = ("focus", "full")
 MEDIA_KINDS = ("video", "audio", "none")
 
 
+class InviteLoginIn(BaseModel):
+    nickname: str = Field(min_length=1, max_length=40)
+    invite_code: str = Field(min_length=4, max_length=128)
+
+
 class TrainingCreate(BaseModel):
     live_type: str
     goal: str = Field(min_length=1, max_length=200)

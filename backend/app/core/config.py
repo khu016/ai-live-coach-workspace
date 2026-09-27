@@ -67,8 +67,17 @@ class Settings:
             os.getenv("BULLET_GENERATE_TIMEOUT_SEC", "8")
         )
         self.data_dir = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))
-        self.recording_max_mb = int(os.getenv("RECORDING_MAX_MB", "1024"))
+        self.recording_max_mb = int(os.getenv("RECORDING_MAX_MB", "250"))
         self.practice_max_sec = int(os.getenv("PRACTICE_MAX_SEC", "1200"))
+        # 邀请测试版登录。邀请码只通过服务端环境变量配置，不写进前端或仓库。
+        self.invite_codes = {
+            code.strip() for code in os.getenv("INVITE_CODES", "").split(",") if code.strip()
+        }
+        self.session_cookie_name = os.getenv("SESSION_COOKIE_NAME", "nivi_session")
+        self.session_ttl_days = int(os.getenv("SESSION_TTL_DAYS", "30"))
+        self.session_cookie_secure = os.getenv(
+            "SESSION_COOKIE_SECURE", "false"
+        ).lower() in ("1", "true", "yes")
         # 回应窗口（秒）：弹幕 display_at 后多久内的稳定转写片段视为有效回应。
         # 仅用于事件统计（回应及时率/平均回应时间），不等同于语义质量评分。
         self.response_window_sec = float(os.getenv("RESPONSE_WINDOW_SEC", "20"))

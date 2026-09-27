@@ -11,6 +11,8 @@ _tmp = tempfile.mkdtemp(prefix="aac_test_")
 os.environ["DATA_DIR"] = _tmp
 os.environ["MODEL_API_KEY"] = ""
 os.environ["ASR_PROVIDER"] = "mock"
+os.environ["INVITE_CODES"] = "nivi-test-one,nivi-test-two"
+os.environ["SESSION_COOKIE_SECURE"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,8 +23,18 @@ from app.models import Base
 
 
 @pytest.fixture()
-def client():
+def raw_client():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture()
+def client(raw_client):
+    response = raw_client.post(
+        "/api/v1/auth/invite",
+        json={"nickname": "测试主播", "invite_code": "nivi-test-one"},
+    )
+    assert response.status_code == 200
+    return raw_client

@@ -21,6 +21,7 @@ from fastapi import APIRouter, WebSocket
 from ..db import SessionLocal
 from ..models import Training
 from ..services.asr_base import get_realtime_asr
+from ..services.auth import websocket_user
 from ..services.ambient_bullets import BulletScheduler
 from ..services.realtime import (
     PCM_BYTES_PER_SEC,
@@ -35,10 +36,14 @@ router = APIRouter()
 
 @router.websocket("/trainings/{training_id}/asr/ws")
 async def asr_ws(websocket: WebSocket, training_id: int):
+    user = websocket_user(websocket)
+    if user is None:
+        await websocket.close(code=4401, reason="请先登录")
+        return
     await websocket.accept()
     db = SessionLocal()
     try:
-        t = db.get(Training, training_id)
+        t = db.query(Training).filter_by(id=training_id, user_id=user.id).first()
         if t is None:
             await websocket.send_json({"type": "error", "message": "练习不存在"})
             await websocket.close()

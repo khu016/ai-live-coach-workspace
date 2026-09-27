@@ -10,9 +10,19 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.errors import bad_request, conflict, not_found
 from ..db import get_db
-from ..models import BulletEvent, Feedback, Recording, Training, Transcript
+from ..models import (
+    BulletEvent,
+    EngagementCall,
+    Feedback,
+    Recording,
+    Training,
+    Transcript,
+    TranscriptSegment,
+    User,
+)
 from ..schemas import LIVE_TYPES, MEDIA_KINDS, PRACTICE_MODES, BulletIn, TrainingCreate
 from ..services import bullets as bullets_svc, content_library, stats
+from ..services.auth import current_user
 from ..services.pipeline import reset_results, run_pipeline
 
 router = APIRouter()
@@ -128,8 +138,8 @@ def _bullet_event(training_id: int, b: BulletIn, lib) -> BulletEvent:
     )
 
 
-def _get_training(db: Session, training_id: int) -> Training:
-    t = db.get(Training, training_id)
+def _get_training(db: Session, training_id: int, user_id: int) -> Training:
+    t = db.query(Training).filter_by(id=training_id, user_id=user_id).first()
     if t is None:
         raise not_found("练习不存在")
     return t
@@ -158,7 +168,11 @@ def _validate_media(head: bytes, filename: str, media_kind: str = "video") -> Op
 
 
 @router.post("/trainings")
-def create_training(payload: TrainingCreate, db: Session = Depends(get_db)):
+def create_training(
+    payload: TrainingCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     if payload.live_type not in LIVE_TYPES:
         raise bad_request(f"live_type 必须是 {LIVE_TYPES} 之一")
     if payload.practice_mode not in PRACTICE_MODES:
@@ -166,6 +180,7 @@ def create_training(payload: TrainingCreate, db: Session = Depends(get_db)):
     if payload.media_kind not in MEDIA_KINDS:
         raise bad_request(f"media_kind 必须是 {MEDIA_KINDS} 之一")
     t = Training(
+        user_id=user.id,
         live_type=payload.live_type,
         goal=payload.goal,
         topic=payload.topic,
@@ -196,8 +211,12 @@ def create_training(payload: TrainingCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/trainings/{training_id}")
-def get_training(training_id: int, db: Session = Depends(get_db)):
-    t = _get_training(db, training_id)
+def get_training(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    t = _get_training(db, training_id, user.id)
     rec = db.query(Recording).filter_by(training_id=training_id).first()
     return {"training": _training_dict(t, rec)}
 
@@ -211,8 +230,9 @@ async def finish_training(
     media_kind: Optional[str] = Form(None),
     mime_type: Optional[str] = Form(None),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
-    t = _get_training(db, training_id)
+    t = _get_training(db, training_id, user.id)
     if t.status not in ("created", "recording"):
         raise conflict("当前状态不可结束练习")
 
@@ -272,8 +292,12 @@ async def finish_training(
 
 
 @router.get("/trainings/{training_id}/feedback")
-def get_feedback(training_id: int, db: Session = Depends(get_db)):
-    t = _get_training(db, training_id)
+def get_feedback(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    t = _get_training(db, training_id, user.id)
     resp = {"status": t.status, "feedback": None}
     if t.status == "feedback_ready":
         fb = db.query(Feedback).filter_by(training_id=training_id).first()
@@ -286,9 +310,13 @@ def get_feedback(training_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/trainings/{training_id}/media")
-def get_training_media(training_id: int, db: Session = Depends(get_db)):
+def get_training_media(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     """返回媒体元数据：是否存在 / 类型 / MIME / 时长 / 大小。"""
-    t = _get_training(db, training_id)
+    t = _get_training(db, training_id, user.id)
     rec = db.query(Recording).filter_by(training_id=training_id).first()
     if rec is None:
         return {"exists": False, "media_kind": t.media_kind or "none", "mime_type": None, "duration_sec": None, "size_bytes": None}
@@ -296,8 +324,12 @@ def get_training_media(training_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/trainings/{training_id}/recording")
-def get_recording(training_id: int, db: Session = Depends(get_db)):
-    t = _get_training(db, training_id)
+def get_recording(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    t = _get_training(db, training_id, user.id)
     rec = db.query(Recording).filter_by(training_id=training_id).first()
     if rec is None:
         raise not_found("录像不存在")
@@ -307,11 +339,16 @@ def get_recording(training_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/trainings/{training_id}/retrain")
-def retrain(training_id: int, db: Session = Depends(get_db)):
-    t = _get_training(db, training_id)
+def retrain(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    t = _get_training(db, training_id, user.id)
     if t.status != "feedback_ready":
         raise conflict("仅在反馈就绪后可重练")
     new_t = Training(
+        user_id=user.id,
         live_type=t.live_type,
         goal=t.goal,
         topic=t.topic,
@@ -336,10 +373,14 @@ def retrain(training_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/trainings/{training_id}/compare")
-def compare(training_id: int, db: Session = Depends(get_db)):
-    t = _get_training(db, training_id)
+def compare(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    t = _get_training(db, training_id, user.id)
     prev = (
-        db.get(Training, t.prev_training_id)
+        db.query(Training).filter_by(id=t.prev_training_id, user_id=user.id).first()
         if t.prev_training_id
         else None
     )
@@ -358,8 +399,12 @@ def compare(training_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/trainings/{training_id}/retry")
-def retry(training_id: int, db: Session = Depends(get_db)):
-    t = _get_training(db, training_id)
+def retry(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    t = _get_training(db, training_id, user.id)
     if t.status != "failed":
         raise conflict("仅失败状态可重试")
     reset_results(db, training_id)
@@ -368,9 +413,13 @@ def retry(training_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/trainings/{training_id}")
-def delete_training(training_id: int, db: Session = Depends(get_db)):
+def delete_training(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     """删除训练及其媒体文件（个人主播本人触发）。"""
-    t = _get_training(db, training_id)
+    t = _get_training(db, training_id, user.id)
     rec = db.query(Recording).filter_by(training_id=training_id).first()
     if rec is not None and rec.file_path and os.path.exists(rec.file_path):
         try:
@@ -381,16 +430,22 @@ def delete_training(training_id: int, db: Session = Depends(get_db)):
     db.query(BulletEvent).filter_by(training_id=training_id).delete()
     db.query(Feedback).filter_by(training_id=training_id).delete()
     db.query(Transcript).filter_by(training_id=training_id).delete()
+    db.query(TranscriptSegment).filter_by(training_id=training_id).delete()
+    db.query(EngagementCall).filter_by(training_id=training_id).delete()
     db.delete(t)
     db.commit()
     return {"deleted": True, "training_id": training_id}
 
 
 @router.get("/trainings")
-def list_trainings(db: Session = Depends(get_db)):
+def list_trainings(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     """训练列表（真实记录，供首页最近练习与成长记录）。"""
     rows = (
         db.query(Training)
+        .filter(Training.user_id == user.id)
         .order_by(Training.finished_at.desc(), Training.id.desc())
         .limit(50)
         .all()
@@ -403,12 +458,18 @@ def list_trainings(db: Session = Depends(get_db)):
 
 
 @router.get("/recordings")
-def list_recordings(db: Session = Depends(get_db)):
+def list_recordings(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     """真实媒体记录列表（含媒体是否存在/类型/MIME/时长/大小）。"""
-    return {"recordings": stats.list_recordings()}
+    return {"recordings": stats.list_recordings(user.id)}
 
 
 @router.get("/stats/week")
-def week_stats(db: Session = Depends(get_db)):
+def week_stats(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     """真实训练统计（本周/上周），样本不足时返回 sample_sufficient=false。"""
-    return stats.compute_week_stats()
+    return stats.compute_week_stats(user.id)

@@ -36,11 +36,12 @@ def _week_bounds_utc_naive(offset_weeks: int = 0):
     return start_utc, end_utc
 
 
-def _training_ids_in_range(start_utc, end_utc):
+def _training_ids_in_range(start_utc, end_utc, user_id: int = 1):
     db = SessionLocal()
     try:
         rows = (
             db.query(Training.id)
+            .filter(Training.user_id == user_id)
             .filter(Training.status == "feedback_ready")
             .filter(Training.finished_at >= start_utc)
             .filter(Training.finished_at < end_utc)
@@ -51,12 +52,13 @@ def _training_ids_in_range(start_utc, end_utc):
         db.close()
 
 
-def _week_stats(start_utc, end_utc):
+def _week_stats(start_utc, end_utc, user_id: int = 1):
     db = SessionLocal()
     try:
         ids = [
             r[0]
             for r in db.query(Training.id)
+            .filter(Training.user_id == user_id)
             .filter(Training.status == "feedback_ready")
             .filter(Training.finished_at >= start_utc)
             .filter(Training.finished_at < end_utc)
@@ -138,11 +140,11 @@ def _week_stats(start_utc, end_utc):
         db.close()
 
 
-def compute_week_stats():
+def compute_week_stats(user_id: int = 1):
     start, end = _week_bounds_utc_naive(0)
     prev_start, prev_end = _week_bounds_utc_naive(-1)
-    current = _week_stats(start, end)
-    previous = _week_stats(prev_start, prev_end)
+    current = _week_stats(start, end, user_id)
+    previous = _week_stats(prev_start, prev_end, user_id)
 
     change = {}
     if current["sample_sufficient"] and previous["sample_sufficient"]:
@@ -163,12 +165,13 @@ def compute_week_stats():
     }
 
 
-def recent_trainings(limit: int = 10):
+def recent_trainings(limit: int = 10, user_id: int = 1):
     """最近完成的训练（真实记录，供首页"最近练习"与成长记录）。"""
     db = SessionLocal()
     try:
         rows = (
             db.query(Training)
+            .filter(Training.user_id == user_id)
             .filter(Training.status == "feedback_ready")
             .order_by(Training.finished_at.desc())
             .limit(limit)
@@ -179,13 +182,14 @@ def recent_trainings(limit: int = 10):
         db.close()
 
 
-def list_recordings():
+def list_recordings(user_id: int = 1):
     """真实媒体记录列表（含媒体是否存在/类型/时长/大小）。"""
     db = SessionLocal()
     try:
         rows = (
             db.query(Recording, Training)
             .join(Training, Recording.training_id == Training.id)
+            .filter(Training.user_id == user_id)
             .order_by(Recording.created_at.desc())
             .all()
         )

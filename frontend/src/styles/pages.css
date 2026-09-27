@@ -3,6 +3,7 @@
    ============================================================ */
 
 /* ---------- 登录 ---------- */
+.auth-loading { min-height: 100vh; display: grid; place-items: center; color: var(--text-secondary); background: var(--bg-page); }
 .login-page {
   min-height: 100vh;
   display: flex;

@@ -167,6 +167,11 @@ export interface TutorialCatalogResponse {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
+export interface AuthUser {
+  id: number
+  nickname: string
+}
+
 function apiUrl(path: string): string {
   return `${API_BASE}${path}`
 }
@@ -174,17 +179,37 @@ function apiUrl(path: string): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), {
     ...init,
+    credentials: 'include',
     headers: {
       Accept: 'application/json',
       ...init?.headers,
     },
   })
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/api/v1/auth/')) {
+      window.dispatchEvent(new Event('nivi:session-expired'))
+    }
     const body = await response.json().catch(() => null)
     const message = body?.error?.message ?? body?.detail ?? `请求失败（${response.status}）`
     throw new Error(typeof message === 'string' ? message : '请求失败，请稍后重试')
   }
   return response.json() as Promise<T>
+}
+
+export function loginWithInvite(nickname: string, inviteCode: string): Promise<{ user: AuthUser }> {
+  return request('/api/v1/auth/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname, invite_code: inviteCode }),
+  })
+}
+
+export function getCurrentUser(): Promise<{ user: AuthUser }> {
+  return request('/api/v1/auth/me')
+}
+
+export function logoutSession(): Promise<{ logged_out: boolean }> {
+  return request('/api/v1/auth/logout', { method: 'POST' })
 }
 
 export function createTraining(input: CreateTrainingInput): Promise<CreateTrainingResponse> {

@@ -12,18 +12,27 @@ import ComparePage from './pages/CompareConnectedPage'
 import GrowthPage from './pages/GrowthPage'
 import RecordingsPage from './pages/RecordingsPage'
 import ProfilePage from './pages/ProfilePage'
+import { useApp } from './store/AppContext'
+
+function ProtectedLayout() {
+  const { authStatus } = useApp()
+  if (authStatus === 'loading') return <div className="auth-loading">正在确认登录状态…</div>
+  if (authStatus === 'anonymous') return <Navigate to="/login" replace />
+  return <AppShell><Outlet /></AppShell>
+}
+
+function LoginRoute() {
+  const { authStatus } = useApp()
+  if (authStatus === 'loading') return <div className="auth-loading">正在确认登录状态…</div>
+  if (authStatus === 'authenticated') return <Navigate to="/" replace />
+  return <LoginPage />
+}
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route
-        element={
-          <AppShell>
-            <Outlet />
-          </AppShell>
-        }
-      >
+      <Route path="/login" element={<LoginRoute />} />
+      <Route element={<ProtectedLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/tutorials" element={<TutorialsPage />} />
         <Route path="/tutorials/:id" element={<TutorialDetailPage />} />

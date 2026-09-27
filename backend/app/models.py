@@ -10,6 +10,31 @@ def now():
     return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
 
+class User(Base):
+    """邀请测试用户。一个邀请码永久绑定一个独立账号。"""
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nickname = Column(String(40), nullable=False)
+    invite_code_hash = Column(String(64), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime, default=now)
+    updated_at = Column(DateTime, default=now, onupdate=now)
+
+
+class AuthSession(Base):
+    """服务端会话。浏览器只保存 HttpOnly 随机令牌。"""
+
+    __tablename__ = "auth_sessions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=now)
+
+
 class Training(Base):
     __tablename__ = "trainings"
 
@@ -114,7 +139,7 @@ class Feedback(Base):
 
 
 class TutorialProgress(Base):
-    """个人主播的教程学习进度。第一版固定使用 user_id=1。"""
+    """个人主播的教程学习进度，按登录用户隔离。"""
 
     __tablename__ = "tutorial_progress"
     __table_args__ = (UniqueConstraint("user_id", "tutorial_id", name="uq_tutorial_progress_user"),)

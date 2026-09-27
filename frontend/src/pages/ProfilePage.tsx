@@ -18,7 +18,7 @@ import {
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const { user, updateUser, showToast } = useApp()
+  const { user, logout, updateUser, showToast } = useApp()
 
   const [nickname, setNickname] = useState(user.nickname)
   const [liveType, setLiveType] = useState<LiveType>(user.primaryLiveType)
@@ -200,7 +200,8 @@ export default function ProfilePage() {
               取消
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
+                await logout()
                 setConfirmLogout(false)
                 navigate('/login')
               }}

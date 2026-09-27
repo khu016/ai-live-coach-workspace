@@ -7,44 +7,40 @@ import { useApp } from '../store/AppContext'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { showToast } = useApp()
+  const { login, showToast } = useApp()
 
-  const [phone, setPhone] = useState('')
+  const [nickname, setNickname] = useState('')
   const [code, setCode] = useState('')
-  const [phoneError, setPhoneError] = useState('')
+  const [nicknameError, setNicknameError] = useState('')
   const [codeError, setCodeError] = useState('')
-  const [countdown, setCountdown] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
 
-  const sendCode = () => {
-    const ok = /^1\d{10}$/.test(phone)
-    if (!ok) {
-      setPhoneError('请输入 11 位手机号')
-      return
-    }
-    setPhoneError('')
-    showToast('验证码已发送（模拟）', 'success')
-    setCountdown(60)
-    window.setTimeout(() => setCountdown(0), 60000)
-  }
-
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     let valid = true
-    if (!/^1\d{10}$/.test(phone)) {
-      setPhoneError('请输入 11 位手机号')
+    if (!nickname.trim()) {
+      setNicknameError('请输入你的主播昵称')
       valid = false
     } else {
-      setPhoneError('')
+      setNicknameError('')
     }
-    if (!/^\d{6}$/.test(code)) {
-      setCodeError('请输入 6 位验证码')
+    if (code.trim().length < 4) {
+      setCodeError('请输入有效邀请码')
       valid = false
     } else {
       setCodeError('')
     }
     if (!valid) return
-    showToast('登录成功', 'success')
-    navigate('/')
+    setSubmitting(true)
+    try {
+      await login(nickname.trim(), code.trim())
+      showToast('欢迎进入 NIVI 测试版', 'success')
+      navigate('/')
+    } catch (error) {
+      setCodeError(error instanceof Error ? error.message : '登录失败，请检查邀请码')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -61,45 +57,39 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={submit} className="login-form" noValidate>
-          <FormField label="手机号" htmlFor="login-phone" error={phoneError}>
+          <FormField label="主播昵称" htmlFor="login-nickname" error={nicknameError}>
             <input
-              id="login-phone"
+              id="login-nickname"
               className="field__input"
-              type="tel"
-              inputMode="numeric"
-              maxLength={11}
-              placeholder="请输入手机号"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              type="text"
+              maxLength={40}
+              placeholder="例如：小鹿主播"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
             />
           </FormField>
 
-          <FormField label="验证码" htmlFor="login-code" error={codeError}>
-            <div className="login-code-row">
-              <input
-                id="login-code"
-                className="field__input"
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="6 位验证码"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              />
-              <Button type="button" variant="secondary" onClick={sendCode} disabled={countdown > 0}>
-                {countdown > 0 ? `${countdown}s 后重发` : '获取验证码'}
-              </Button>
-            </div>
+          <FormField label="邀请码" htmlFor="login-code" error={codeError}>
+            <input
+              id="login-code"
+              className="field__input"
+              type="password"
+              autoComplete="current-password"
+              maxLength={128}
+              placeholder="请输入测试邀请码"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
           </FormField>
 
-          <Button type="submit" block size="lg">
-            登录
+          <Button type="submit" block size="lg" disabled={submitting}>
+            {submitting ? '正在进入…' : '进入测试版'}
           </Button>
         </form>
 
         <div className="login-note">
           <ShieldCheck size={14} aria-hidden />
-          <span>登录与验证码均为本地模拟，不会连接真实接口</span>
+          <span>每个邀请码绑定一个独立账号，训练录像默认仅本人可见</span>
         </div>
       </div>
     </div>
