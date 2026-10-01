@@ -18,10 +18,12 @@ import json
 
 from fastapi import APIRouter, WebSocket
 
+from ..core.config import settings
 from ..db import SessionLocal
 from ..models import Training
 from ..services.asr_base import get_realtime_asr
 from ..services.auth import websocket_user
+from ..services.analytics import record_event
 from ..services.ambient_bullets import BulletScheduler
 from ..services.realtime import (
     PCM_BYTES_PER_SEC,
@@ -55,14 +57,39 @@ async def asr_ws(websocket: WebSocket, training_id: int):
         if t.status == "created":
             t.status = "recording"
             db.commit()
+        record_event(
+            db,
+            "training_started",
+            user_id=user.id,
+            route="/practice/live",
+            entity_type="training",
+            entity_id=training_id,
+            properties={"practice_mode": t.practice_mode, "live_type": t.live_type},
+        )
 
         provider = get_realtime_asr()
         try:
             session = await provider.open_session(training_id=training_id)
         except Exception as e:  # noqa: BLE001
+            record_event(
+                db,
+                "asr_failed",
+                user_id=user.id,
+                entity_type="training",
+                entity_id=training_id,
+                properties={"error_code": "open_session_failed"},
+            )
             await websocket.send_json({"type": "asr_error", "message": str(e)})
             await websocket.close()
             return
+        record_event(
+            db,
+            "asr_started",
+            user_id=user.id,
+            entity_type="training",
+            entity_id=training_id,
+            properties={"source": settings.asr_provider},
+        )
 
         scheduler = BulletScheduler(t)
         total_audio_bytes = 0

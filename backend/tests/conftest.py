@@ -13,6 +13,7 @@ os.environ["MODEL_API_KEY"] = ""
 os.environ["ASR_PROVIDER"] = "mock"
 os.environ["INVITE_CODES"] = "nivi-test-one,nivi-test-two"
 os.environ["SESSION_COOKIE_SECURE"] = "false"
+os.environ["ADMIN_ACCESS_CODE"] = "nivi-admin-test-code"
 
 import pytest
 from fastapi.testclient import TestClient

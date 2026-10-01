@@ -23,6 +23,7 @@ from ..models import (
 from ..schemas import LIVE_TYPES, MEDIA_KINDS, PRACTICE_MODES, BulletIn, TrainingCreate
 from ..services import bullets as bullets_svc, content_library, stats
 from ..services.auth import current_user
+from ..services.analytics import record_event
 from ..services.pipeline import reset_results, run_pipeline
 
 router = APIRouter()
@@ -207,6 +208,19 @@ def create_training(
         seed=t.id,
         selected_must_ids=t.selected_must_cover_scenario_ids,
     )
+    record_event(
+        db,
+        "training_created",
+        user_id=user.id,
+        route="/practice/new",
+        entity_type="training",
+        entity_id=t.id,
+        properties={
+            "practice_mode": t.practice_mode,
+            "live_type": t.live_type,
+            "media_kind": t.media_kind,
+        },
+    )
     return {"training": _training_dict(t), "script": script}
 
 
@@ -287,6 +301,20 @@ async def finish_training(
     db.refresh(t)
 
     run_pipeline(training_id)
+    record_event(
+        db,
+        "training_completed",
+        user_id=user.id,
+        route="/practice/live",
+        entity_type="training",
+        entity_id=t.id,
+        properties={
+            "practice_mode": t.practice_mode,
+            "live_type": t.live_type,
+            "media_kind": kind,
+            "duration_sec": duration_sec,
+        },
+    )
     rec = db.query(Recording).filter_by(training_id=training_id).first()
     return {"training": _training_dict(t, rec)}
 
@@ -368,6 +396,15 @@ def retrain(
         new_t.topic,
         seed=new_t.id,
         selected_must_ids=new_t.selected_must_cover_scenario_ids,
+    )
+    record_event(
+        db,
+        "retrain_started",
+        user_id=user.id,
+        route=f"/reports/{training_id}",
+        entity_type="training",
+        entity_id=new_t.id,
+        properties={"practice_mode": new_t.practice_mode, "live_type": new_t.live_type},
     )
     return {"training": _training_dict(new_t), "script": script}
 

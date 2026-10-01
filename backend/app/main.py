@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api import auth, realtime, trainings, tutorials
+from .api import analytics, auth, realtime, trainings, tutorials
 from .core.errors import AppError
 from .db import SessionLocal, engine, run_migrations
 from .models import Base, Training
@@ -59,6 +59,7 @@ app.include_router(trainings.router, prefix="/api/v1")
 app.include_router(realtime.router, prefix="/api/v1")
 app.include_router(tutorials.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(analytics.router, prefix="/api/v1")
 
 ASSETS_DIR = STATIC_DIR / "assets"
 if ASSETS_DIR.exists():

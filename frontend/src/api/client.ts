@@ -172,6 +172,44 @@ export interface AuthUser {
   nickname: string
 }
 
+export type AnalyticsEventName =
+  | 'page_view'
+  | 'report_viewed'
+
+export interface AdminAnalyticsSummary {
+  range_days: number
+  generated_at: string
+  metrics: {
+    total_users: number
+    new_users: number
+    active_users: number
+    page_views: number
+    training_created: number
+    training_completed: number
+    completion_rate: number | null
+    practice_minutes: number
+    tutorial_views: number
+    tutorial_completed: number
+    report_views: number
+    retrain_count: number
+    asr_started: number
+    asr_failed: number
+    dynamic_bullets: number
+  }
+  funnel: Array<{ key: string; label: string; users: number }>
+  daily: Array<{ date: string; label: string; active_users: number; page_views: number; trainings: number }>
+  recent_events: Array<{
+    id: number
+    event_name: string
+    user_id: number | null
+    route: string | null
+    entity_type: string | null
+    entity_id: string | null
+    properties: Record<string, string | number | boolean | null>
+    created_at: string | null
+  }>
+}
+
 function apiUrl(path: string): string {
   return `${API_BASE}${path}`
 }
@@ -186,7 +224,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   })
   if (!response.ok) {
-    if (response.status === 401 && !path.startsWith('/api/v1/auth/')) {
+    if (
+      response.status === 401
+      && !path.startsWith('/api/v1/auth/')
+      && !path.startsWith('/api/v1/admin/')
+    ) {
       window.dispatchEvent(new Event('nivi:session-expired'))
     }
     const body = await response.json().catch(() => null)
@@ -194,6 +236,59 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(typeof message === 'string' ? message : '请求失败，请稍后重试')
   }
   return response.json() as Promise<T>
+}
+
+function analyticsSessionId(): string {
+  const key = 'nivi:analytics-session'
+  let value = sessionStorage.getItem(key)
+  if (!value) {
+    value = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    sessionStorage.setItem(key, value)
+  }
+  return value
+}
+
+export function trackAnalyticsEvent(
+  eventName: AnalyticsEventName,
+  input: {
+    route?: string
+    entityType?: string
+    entityId?: string | number
+    properties?: Record<string, string | number | boolean | null>
+  } = {},
+): Promise<{ accepted: boolean; event_id: number }> {
+  return request('/api/v1/analytics/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      event_name: eventName,
+      route: input.route,
+      entity_type: input.entityType,
+      entity_id: input.entityId == null ? undefined : String(input.entityId),
+      session_id: analyticsSessionId(),
+      properties: input.properties ?? {},
+    }),
+  })
+}
+
+export function getAdminSession(): Promise<{ authenticated: boolean }> {
+  return request('/api/v1/admin/me')
+}
+
+export function loginAdmin(accessCode: string): Promise<{ authenticated: boolean }> {
+  return request('/api/v1/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_code: accessCode }),
+  })
+}
+
+export function logoutAdmin(): Promise<{ logged_out: boolean }> {
+  return request('/api/v1/admin/logout', { method: 'POST' })
+}
+
+export function getAdminAnalytics(days: 7 | 30): Promise<AdminAnalyticsSummary> {
+  return request(`/api/v1/admin/analytics/summary?days=${days}`)
 }
 
 export function loginWithInvite(nickname: string, inviteCode: string): Promise<{ user: AuthUser }> {

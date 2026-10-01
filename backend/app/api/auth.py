@@ -6,13 +6,19 @@ from ..db import get_db
 from ..models import User
 from ..schemas import InviteLoginIn
 from ..services.auth import current_user, login_with_invite, revoke_token, user_dict
+from ..services.analytics import record_event
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/invite")
 def invite_login(payload: InviteLoginIn, response: Response, db: Session = Depends(get_db)):
-    user, token = login_with_invite(db, payload.invite_code, payload.nickname)
+    try:
+        user, token = login_with_invite(db, payload.invite_code, payload.nickname)
+    except Exception:
+        record_event(db, "login_failed", route="/login")
+        raise
+    record_event(db, "login_success", user_id=user.id, route="/login")
     response.set_cookie(
         key=settings.session_cookie_name,
         value=token,

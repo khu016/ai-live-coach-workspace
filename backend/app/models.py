@@ -35,6 +35,34 @@ class AuthSession(Base):
     created_at = Column(DateTime, default=now)
 
 
+class AdminSession(Base):
+    """管理员数据看板会话，与主播账号会话相互独立。"""
+
+    __tablename__ = "admin_sessions"
+
+    id = Column(Integer, primary_key=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=now)
+
+
+class AnalyticsEvent(Base):
+    """第一方产品埋点，只保存白名单字段，不保存音视频、转写或邀请码。"""
+
+    __tablename__ = "analytics_events"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=True, index=True)
+    event_name = Column(String(64), nullable=False, index=True)
+    route = Column(String(240), nullable=True)
+    entity_type = Column(String(32), nullable=True)
+    entity_id = Column(String(64), nullable=True)
+    session_id = Column(String(64), nullable=True, index=True)
+    properties = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=now, index=True)
+
+
 class Training(Base):
     __tablename__ = "trainings"
 

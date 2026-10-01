@@ -12,6 +12,7 @@ import ComparePage from './pages/CompareConnectedPage'
 import GrowthPage from './pages/GrowthPage'
 import RecordingsPage from './pages/RecordingsPage'
 import ProfilePage from './pages/ProfilePage'
+import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
 import { useApp } from './store/AppContext'
 
 function ProtectedLayout() {
@@ -32,6 +33,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
+      <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/tutorials" element={<TutorialsPage />} />

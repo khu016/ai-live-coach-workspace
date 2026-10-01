@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +10,19 @@ MEDIA_KINDS = ("video", "audio", "none")
 class InviteLoginIn(BaseModel):
     nickname: str = Field(min_length=1, max_length=40)
     invite_code: str = Field(min_length=4, max_length=128)
+
+
+class AdminLoginIn(BaseModel):
+    access_code: str = Field(min_length=8, max_length=256)
+
+
+class AnalyticsEventIn(BaseModel):
+    event_name: str = Field(min_length=2, max_length=64)
+    route: Optional[str] = Field(default=None, max_length=240)
+    entity_type: Optional[str] = Field(default=None, max_length=32)
+    entity_id: Optional[str] = Field(default=None, max_length=64)
+    session_id: Optional[str] = Field(default=None, max_length=64)
+    properties: Dict[str, Any] = Field(default_factory=dict)
 
 
 class TrainingCreate(BaseModel):

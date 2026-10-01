@@ -78,6 +78,12 @@ class Settings:
         self.session_cookie_secure = os.getenv(
             "SESSION_COOKIE_SECURE", "false"
         ).lower() in ("1", "true", "yes")
+        # 管理员数据看板。口令只存在服务端环境变量中，独立于主播邀请码。
+        self.admin_access_code = os.getenv("ADMIN_ACCESS_CODE", "")
+        self.admin_session_cookie_name = os.getenv(
+            "ADMIN_SESSION_COOKIE_NAME", "nivi_admin_session"
+        )
+        self.admin_session_ttl_hours = int(os.getenv("ADMIN_SESSION_TTL_HOURS", "12"))
         # 回应窗口（秒）：弹幕 display_at 后多久内的稳定转写片段视为有效回应。
         # 仅用于事件统计（回应及时率/平均回应时间），不等同于语义质量评分。
         self.response_window_sec = float(os.getenv("RESPONSE_WINDOW_SEC", "20"))
