@@ -5,9 +5,9 @@
 
 :root {
   /* 背景与表面 */
-  --bg: #edf2f3;              /* 页面外层浅中性灰 */
-  --surface: #fbfdfd;         /* 应用主体 */
-  --card: rgba(255, 255, 255, 0.93); /* 卡片表面 */
+  --bg: #f4f9f8;              /* 页面外层浅青画布 */
+  --surface: rgba(251, 253, 253, 0.86); /* 应用主体 */
+  --card: rgba(255, 255, 255, 0.78); /* 卡片表面 */
   --card-hover: #fafbfc;
   --card-muted: #f7f8f9;
 
@@ -23,7 +23,7 @@
 
   /* 品牌青色（克制使用：关键数据/图表/开关/少量状态） */
   --brand: #08b8b0;
-  --brand-ink: #078c91;
+  --brand-ink: #087f83;
   --brand-soft: rgba(11, 157, 174, 0.10);
   --brand-soft-2: rgba(11, 157, 174, 0.06);
   --brand-line: rgba(11, 157, 174, 0.22);
@@ -42,15 +42,15 @@
   --success-soft: #e7f5ee;
 
   /* 圆角 */
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
   --radius-pill: 999px;
 
   /* 阴影 */
   --shadow-sm: 0 1px 2px rgba(20, 24, 32, 0.05);
-  --shadow: 0 6px 20px rgba(20, 24, 32, 0.08);
-  --shadow-frost: 0 8px 24px rgba(11, 157, 174, 0.10);
+  --shadow: 0 10px 32px rgba(19, 64, 67, 0.08);
+  --shadow-frost: 0 18px 52px rgba(11, 157, 174, 0.13);
 
   /* 布局 */
   --page-max: 1460px;
@@ -80,8 +80,14 @@ body,
 
 body {
   margin: 0;
+  overflow-x: hidden;
   font-family: var(--font-sans);
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 12% 8%, rgba(76, 221, 211, 0.17), transparent 28%),
+    radial-gradient(circle at 88% 18%, rgba(136, 224, 219, 0.14), transparent 25%),
+    radial-gradient(circle at 68% 88%, rgba(171, 206, 237, 0.14), transparent 30%),
+    linear-gradient(145deg, #fafdfc 0%, var(--bg) 48%, #f1f8f8 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-size: 14px;
   line-height: 1.55;
@@ -115,7 +121,7 @@ video {
 
 /* 焦点可见性（键盘） */
 :focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 3px solid var(--brand-ink);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
@@ -154,13 +160,103 @@ video {
 /* ---------- 布局工具 ---------- */
 .app-shell {
   min-height: 100%;
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
-  width: min(1512px, calc(100% - 48px));
-  margin: 34px auto;
-  background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(248,251,251,.98));
-  box-shadow: 0 16px 46px rgba(30, 50, 55, .08);
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
+}
+
+.app-shell::before,
+.app-shell::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -10%;
+  pointer-events: none;
+}
+
+.app-shell::before {
+  background:
+    radial-gradient(ellipse at 12% 24%, rgba(99, 220, 211, .10), transparent 48%),
+    radial-gradient(ellipse at 88% 30%, rgba(127, 181, 239, .11), transparent 49%),
+    radial-gradient(ellipse at 74% 92%, rgba(217, 166, 237, .08), transparent 48%);
+  filter: blur(34px);
+  transform: scale(1.08);
+}
+
+.app-shell::after {
+  inset: -22% -12%;
+  background:
+    radial-gradient(ellipse at 38% 65%, rgba(126, 180, 240, .10), transparent 54%),
+    radial-gradient(ellipse at 78% 72%, rgba(202, 158, 236, .08), transparent 52%);
+  opacity: .76;
+  transform: scale(1.08);
+}
+
+.app-shell > :not(.cursor-glow-backdrop) {
+  z-index: 2;
+}
+
+.cursor-glow-backdrop {
+  --cursor-glow-x: 68%;
+  --cursor-glow-y: 32%;
+  --cursor-trail-x: 58%;
+  --cursor-trail-y: 42%;
+  position: absolute;
+  z-index: 1;
+  inset: 0;
   overflow: hidden;
+  pointer-events: none;
+  opacity: .26;
+  transition: opacity .3s ease;
+}
+
+.cursor-glow-backdrop::before,
+.cursor-glow-backdrop::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.cursor-glow-backdrop::before {
+  width: clamp(520px, 48vw, 760px);
+  height: clamp(360px, 42vw, 620px);
+  background:
+    radial-gradient(ellipse, rgba(90, 222, 211, .15) 0%, rgba(112, 190, 232, .08) 38%, transparent 72%);
+  filter: blur(42px);
+  transform: translate3d(var(--cursor-glow-x), var(--cursor-glow-y), 0) translate(-50%, -50%);
+}
+
+.cursor-glow-backdrop::after {
+  width: clamp(620px, 58vw, 920px);
+  height: clamp(420px, 48vw, 720px);
+  background:
+    radial-gradient(ellipse, rgba(166, 169, 239, .09) 0%, rgba(214, 166, 236, .06) 42%, transparent 74%);
+  filter: blur(58px);
+  transform: translate3d(var(--cursor-trail-x), var(--cursor-trail-y), 0) translate(-50%, -50%);
+}
+
+.cursor-glow-backdrop.is-active { opacity: .44; }
+
+.cursor-glow-backdrop.is-static::before {
+  transform: translate3d(68vw, 32vh, 0) translate(-50%, -50%);
+}
+
+.cursor-glow-backdrop.is-static::after {
+  transform: translate3d(54vw, 54vh, 0) translate(-50%, -50%);
 }
 
 .page {
@@ -1120,7 +1216,7 @@ video {
   }
   .topnav {
     height: 0;
-    position: static;
+    position: sticky;
     background: transparent;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;

@@ -9,8 +9,10 @@ import {
   CircleCheck,
   FileText,
   MessageCircle,
+  Mic2,
   Play,
   Radio,
+  ShieldCheck,
   Sparkles,
   Target,
   TrendingUp,
@@ -18,9 +20,9 @@ import {
 import { getWeekStats, listTrainings, type ApiTraining, type WeekStats } from '../api/client'
 
 const adviceCards = [
-  { title: '弹幕追问应对', description: '回答时补全对象、原因和结果', cta: '开始弹幕应答练习', topic: '弹幕应答', Icon: Sparkles },
-  { title: '表达节奏', description: '在重点信息前后留出停顿', cta: '开始节奏专项练习', topic: '表达节奏', Icon: BarChart3 },
-  { title: '产品介绍', description: '先说适用对象，再讲具体特点', cta: '开始产品介绍练习', topic: '产品介绍', Icon: Target },
+  { title: '弹幕追问应对', description: '回答时补全对象、原因和结果', cue: '“这个适合什么肤质？”', cta: '开始弹幕应答练习', topic: '弹幕应答', Icon: Sparkles },
+  { title: '表达节奏', description: '在重点信息前后留出停顿', cue: '重点前停一拍，让观众听清', cta: '开始节奏专项练习', topic: '表达节奏', Icon: BarChart3 },
+  { title: '产品介绍', description: '先说适用对象，再讲具体特点', cue: '对象 → 特点 → 使用结果', cta: '开始产品介绍练习', topic: '产品介绍', Icon: Target },
 ]
 
 function minutesOf(sec: number): string {
@@ -71,9 +73,13 @@ export default function HomePage() {
     <div className="page home-dashboard">
       <section className="home-hero" aria-labelledby="home-title">
         <div className="home-hero__copy">
-          <p className="home-hero__eyebrow">开播前训练</p>
+          <p className="home-hero__eyebrow"><Sparkles size={16} /> NIVI 开播排练室</p>
           <h1 id="home-title">今天想怎么练？</h1>
-          <p>选择一种方式，开始你的开播前训练</p>
+          <p className="home-hero__lead">先看教程、练一个难点，或者直接模拟直播。路径由你决定。</p>
+          <div className="home-hero__trust" aria-label="训练说明">
+            <span><ShieldCheck size={16} /> 不会真实开播</span>
+            <span><Mic2 size={16} /> 可以只使用麦克风</span>
+          </div>
         </div>
 
         <div className="advice-stage" aria-label="今日训练建议">
@@ -88,11 +94,15 @@ export default function HomePage() {
                 onClick={() => selectAdvice(index)}
                 aria-label={layer === 0 ? `${card.title}，${card.cta}` : `切换到${card.title}`}
                 aria-current={layer === 0 ? 'true' : undefined}
+                tabIndex={layer === 0 ? 0 : -1}
               >
                 <span className="advice-card__content">
                   <span className="advice-card__label"><CardIcon size={18} /> 今日训练建议</span>
                   <strong>{card.title}</strong>
                   <span className="advice-card__description">{card.description}</span>
+                  <span className="advice-card__cue" aria-hidden>
+                    <MessageCircle size={15} /> {card.cue}
+                  </span>
                   <span className="advice-card__cta">{card.cta} <ArrowRight size={17} /></span>
                 </span>
                 <span className="advice-card__peek" aria-hidden><CardIcon size={27} /><b>{card.title}</b></span>
@@ -101,6 +111,11 @@ export default function HomePage() {
           })}
         </div>
       </section>
+
+      <div className="home-section-heading">
+        <div><span>选择训练方式</span><strong>从你现在最需要的地方开始</strong></div>
+        <p>三种方式可以随时切换，没有固定顺序。</p>
+      </div>
 
       <section className="home-entry-grid" aria-label="训练入口">
         <button className="home-entry" onClick={() => navigate('/practice/new?mode=full')}>
@@ -119,6 +134,10 @@ export default function HomePage() {
           <ChevronRight size={22} />
         </button>
       </section>
+
+      <div className="home-section-heading home-section-heading--compact">
+        <div><span>你的训练状态</span><strong>只展示真实练习数据</strong></div>
+      </div>
 
       <section className="home-workspace" aria-label="训练数据总览">
         <Link
@@ -185,7 +204,7 @@ export default function HomePage() {
         </div>
 
         <article className="home-panel home-panel--animated coach-panel">
-          <header><span><Sparkles size={20} /> AI 陪练</span><button aria-label="展开"><ArrowRight size={18} /></button></header>
+          <header><span><Sparkles size={20} /> AI 陪练</span><button onClick={() => navigate('/practice/new?mode=focus&topic=弹幕应答')} aria-label="开始 AI 陪练"><ArrowRight size={18} /></button></header>
           <div className="coach-advice">
             <span className="coach-bot"><Bot size={28} /></span>
             <p>建议先练习弹幕追问，<br />回答时补全对象、原因和结果。</p>
