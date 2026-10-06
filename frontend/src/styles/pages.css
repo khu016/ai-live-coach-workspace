@@ -1680,23 +1680,19 @@
   min-height: 112px;
   gap: 17px;
   padding: 20px 22px;
-  border: 1px solid rgba(255,255,255,.84);
+  border: 1px solid var(--home-glass-border);
   border-radius: 18px;
-  background:
-    linear-gradient(145deg, rgba(255,255,255,.64), rgba(245,252,251,.32));
-  box-shadow:
-    0 16px 38px rgba(29, 75, 78, .085),
-    inset 0 1px 0 rgba(255,255,255,.96),
-    inset 0 -1px 0 rgba(255,255,255,.32);
+  background: var(--home-glass-surface);
+  box-shadow: var(--home-glass-shadow);
   backdrop-filter: blur(24px) saturate(138%);
   -webkit-backdrop-filter: blur(24px) saturate(138%);
   transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background-color .22s ease;
 }
 .home-entry:hover {
   border-color: rgba(8,127,131,.17);
-  background: rgba(255,255,255,.88);
-  box-shadow: 0 18px 42px rgba(29, 75, 78, .11);
-  transform: translateY(-3px);
+  background: rgba(255,255,255,.78);
+  box-shadow: 0 13px 32px rgba(29, 75, 78, .075);
+  transform: translateY(-2px);
 }
 .home-entry__icon {
   width: 58px;
@@ -1714,22 +1710,18 @@
   isolation: isolate;
 }
 .home-panel {
-  border: 1px solid rgba(255,255,255,.82);
+  border: 1px solid var(--home-glass-border);
   border-radius: 18px;
-  background:
-    linear-gradient(145deg, rgba(255,255,255,.66), rgba(244,251,250,.36));
-  box-shadow:
-    0 16px 40px rgba(29, 75, 78, .08),
-    inset 0 1px 0 rgba(255,255,255,.96),
-    inset 0 -1px 0 rgba(255,255,255,.28);
+  background: var(--home-glass-surface);
+  box-shadow: var(--home-glass-shadow);
   backdrop-filter: blur(24px) saturate(132%);
   -webkit-backdrop-filter: blur(24px) saturate(132%);
 }
 .home-panel--interactive:hover,
 .home-panel--animated:hover {
-  background: rgba(255,255,255,.88);
-  box-shadow: 0 18px 44px rgba(29, 75, 78, .11);
-  transform: translateY(-3px);
+  background: rgba(255,255,255,.78);
+  box-shadow: 0 13px 32px rgba(29, 75, 78, .075);
+  transform: translateY(-2px);
 }
 .weekly-metric,
 .weekly-summary button,
