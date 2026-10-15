@@ -168,6 +168,9 @@ class BulletScheduler:
         return now_sec >= self.next_adversarial_at
 
     def _mark(self, draft: BulletDraft, now_sec: float) -> None:
+        # 展示动作发生时统一写入时间；内容库草稿本身没有时间轴。
+        if draft.at_sec is None:
+            draft.at_sec = now_sec
         self.last_display_at = now_sec
         # 同步语音引擎时钟，保证语音触发与环境定时不重复发射
         self.dynamic.last_bullet_at = now_sec
@@ -199,32 +202,38 @@ class BulletScheduler:
         text = (segment.get("text") or "").strip()
         if not text:
             return
-        det = engagement_svc.classify_engagement(
-            text, segment.get("id"), use_ai=self._use_ai
+        detections = engagement_svc.classify_engagements(
+            text, segment.get("id"), use_ai=self._use_ai, max_calls=2
         )
-        if det is None:
+        if not detections:
             return
-        # 相邻重复号召合并：避免刷屏，同一号召只生成一个回应组
-        if self._last_call_text == text:
-            return
-        self._last_call_text = text
-        responses = engagement_svc.generate_response_group(
-            self.training, det, self._history_bullet_texts()
-        )
-        if not responses:
-            return
-        call = engagement_svc.save_engagement_call(
-            self.training.id, det, segment.get("id"), responses
-        )
-        # 2–6 秒内陆续展示：回应组内部用更短自然间隔，首条最迟 6 秒
-        count = max(1, len(responses))
-        base = now_sec + 2.0
-        span = 4.0  # 2~6 秒窗口
-        for i, r in enumerate(responses):
-            offset = (span / count) * i + self.rng.uniform(0.0, 0.4)
-            self.engagement_queue.append(
-                {"text": r, "target_at": base + offset, "call_id": call.id}
+        # 一个 final 最多处理两个号召；多意图时每组两条，避免短时间刷屏。
+        for det_index, det in enumerate(detections):
+            call_key = f"{det.interaction_type}:{det.requested_response}"
+            if self._last_call_text == call_key:
+                continue
+            self._last_call_text = call_key
+            response_count = 2 if len(detections) > 1 else 3
+            responses = engagement_svc.generate_response_group(
+                self.training, det, self._history_bullet_texts(), count=response_count
             )
+            if not responses:
+                continue
+            call = engagement_svc.save_engagement_call(
+                self.training.id, det, segment.get("id"), responses
+            )
+            base = now_sec + 2.0 + det_index * 0.6
+            span = 4.0
+            count = max(1, len(responses))
+            for i, r in enumerate(responses):
+                offset = (span / count) * i + self.rng.uniform(0.0, 0.35)
+                self.engagement_queue.append(
+                    {"text": r, "target_at": base + offset, "call_id": call.id}
+                )
+
+    def note_voice_activity(self, now_sec: float) -> None:
+        """记录临时转写或音频 VAD 发现的人声，供冷场判断使用。"""
+        self.dynamic.note_voice_activity(now_sec)
 
     def _pop_due_engagement(self, now_sec: float) -> Optional[BulletDraft]:
         """取出到期的互动回应（优先于刁难/环境，不受全局最小间隔限制）。"""

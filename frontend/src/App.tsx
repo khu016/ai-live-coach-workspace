@@ -1,5 +1,7 @@
+import { useCallback, useState } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
+import { SplashScreen } from './components/SplashScreen'
 import LoginPage from './pages/LoginPage'
 import HomePage from './pages/HomePage'
 import TutorialsPage from './pages/TutorialsPage'
@@ -30,24 +32,40 @@ function LoginRoute() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(() => window.location.pathname === '/')
+  const [splashExiting, setSplashExiting] = useState(false)
+  const finishSplash = useCallback(() => setShowSplash(false), [])
+  const startSplashExit = useCallback(() => setSplashExiting(true), [])
+
   return (
-    <Routes>
-      <Route path="/login" element={<LoginRoute />} />
-      <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-      <Route element={<ProtectedLayout />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/tutorials" element={<TutorialsPage />} />
-        <Route path="/tutorials/:id" element={<TutorialDetailPage />} />
-        <Route path="/practice/new" element={<PracticeNewPage />} />
-        <Route path="/practice/live" element={<LivePracticePage />} />
-        <Route path="/practice/focus" element={<FocusPracticePage />} />
-        <Route path="/reports/:id" element={<ReportPage />} />
-        <Route path="/practice/:id/compare" element={<ComparePage />} />
-        <Route path="/growth" element={<GrowthPage />} />
-        <Route path="/recordings" element={<RecordingsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <div
+        className={`app-stage${showSplash
+          ? splashExiting ? ' app-stage--revealing' : ' app-stage--covered'
+          : ''}`}
+      >
+        <Routes>
+          <Route path="/" element={<AppShell><HomePage /></AppShell>} />
+          <Route path="/login" element={<LoginRoute />} />
+          <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+          <Route element={<ProtectedLayout />}>
+            <Route path="/tutorials" element={<TutorialsPage />} />
+            <Route path="/tutorials/:id" element={<TutorialDetailPage />} />
+            <Route path="/practice/new" element={<PracticeNewPage />} />
+            <Route path="/practice/live" element={<LivePracticePage />} />
+            <Route path="/practice/focus" element={<FocusPracticePage />} />
+            <Route path="/reports/:id" element={<ReportPage />} />
+            <Route path="/practice/:id/compare" element={<ComparePage />} />
+            <Route path="/growth" element={<GrowthPage />} />
+            <Route path="/recordings" element={<RecordingsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+      {showSplash && (
+        <SplashScreen onExitStart={startSplashExit} onComplete={finishSplash} />
+      )}
+    </>
   )
 }

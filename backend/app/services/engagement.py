@@ -38,6 +38,12 @@ OPEN = "open"            # 开放意见：你们想先看哪个
 
 INTERACTION_TYPES = (DIGIT, OPTION, KEYWORD, CHECKIN, EMOTION, CHAIN, OPEN)
 
+_CN_DIGITS = {
+    "零": "0", "〇": "0", "一": "1", "二": "2", "两": "2",
+    "三": "3", "四": "4", "五": "5", "六": "6", "七": "7",
+    "八": "8", "九": "9",
+}
+
 # 互动类型英文 code → 中文标签（供测试/展示）
 INTERACTION_LABELS = {
     DIGIT: "数字口令",
@@ -69,6 +75,13 @@ class EngagementDetection:
 
 def _match_digit(text: str) -> Optional[EngagementDetection]:
     """数字口令：扣1 / 扣个1 / 扣666 / 打1 / 刷1 / 回1。"""
+    # 实时 ASR 经常把“扣1”写成“扣一”。只在互动动词后转换，避免改写普通句子。
+    text = re.sub(
+        r"(扣|打|刷|回)\s*(个|一波)?\s*([零〇一二两三四五六七八九]{1,5})",
+        lambda m: f"{m.group(1)}{m.group(2) or ''}"
+        + "".join(_CN_DIGITS[ch] for ch in m.group(3)),
+        text,
+    )
     patterns = (
         r"扣\s*(?:个|一波|个)?\s*(\d{1,5})",
         r"打\s*(\d{1,5})",
@@ -91,7 +104,22 @@ def _match_digit(text: str) -> Optional[EngagementDetection]:
 
 
 def _match_option(text: str) -> Optional[EngagementDetection]:
-    """选项互动：选A还是B / A还是B / A和B选一个。"""
+    """选项互动：选A还是B，以及“快歌还是慢歌”等中文选项。"""
+    # ASR 可能丢掉“价格、成分”之间的顿号，按常见关注点恢复多选项。
+    common_options = [
+        item for item in ("价格", "成分", "肤质", "容量", "颜色", "款式", "赠品")
+        if item in text
+    ]
+    if len(common_options) >= 2 and ("还是" in text or "最关心" in text):
+        joined = "|".join(common_options)
+        return EngagementDetection(
+            is_engagement_call=True,
+            interaction_type=OPTION,
+            requested_response=joined,
+            allowed_response_form=f"option:{joined}",
+            confidence=0.92,
+            trigger_text=text,
+        )
     m = re.search(r"选?\s*([A-Za-z])\s*还是\s*([A-Za-z])", text)
     if not m:
         m = re.search(r"([A-Za-z])\s*和\s*([A-Za-z])\s*选", text)
@@ -105,6 +133,27 @@ def _match_option(text: str) -> Optional[EngagementDetection]:
             confidence=0.92,
             trigger_text=text,
         )
+    # 常见中文二选一。限制选项长度，避免把整段话贪婪地当成选项。
+    m = re.search(
+        r"(?:想听|想看|更想要|更想|要|选)?\s*"
+        r"([\u4e00-\u9fa5]{1,6})\s*还是\s*([\u4e00-\u9fa5]{1,6})",
+        text,
+    )
+    if m:
+        a, b = m.group(1), m.group(2)
+        for prefix in ("大家", "你们", "想听", "想看", "更想要", "更想", "选"):
+            if a.startswith(prefix) and len(a) > len(prefix):
+                a = a[len(prefix):]
+        b = re.sub(r"[吗呢呀吧]$", "", b)
+        if a and b:
+            return EngagementDetection(
+                is_engagement_call=True,
+                interaction_type=OPTION,
+                requested_response=f"{a}|{b}",
+                allowed_response_form=f"option:{a}|{b}",
+                confidence=0.9,
+                trigger_text=text,
+            )
     return None
 
 
@@ -119,7 +168,7 @@ def _match_keyword(text: str) -> Optional[EngagementDetection]:
         if m:
             kw = m.group(1)
             # 排除把"报到/点赞/接龙"等误判为关键词（交给更专门规则）
-            if kw in ("报到", "赞", "点赞", "举", "举手", "接龙"):
+            if kw in ("报到", "赞", "点赞", "举", "举手", "接龙", "招呼"):
                 continue
             return EngagementDetection(
                 is_engagement_call=True,
@@ -143,7 +192,17 @@ def _match_checkin(text: str) -> Optional[EngagementDetection]:
             confidence=0.9,
             trigger_text=text,
         )
-    if re.search(r"哪里人|哪的人|打在公屏|公屏", text):
+    if re.search(r"新来的?.{0,4}(?:打个)?招呼", text):
+        return EngagementDetection(
+            is_engagement_call=True,
+            interaction_type=CHECKIN,
+            requested_response="打招呼",
+            allowed_response_form="checkin:greeting",
+            confidence=0.9,
+            trigger_text=text,
+        )
+    # “公屏”只是展示位置，不能单独证明主播在询问地域。
+    if re.search(r"哪里人|哪的人|来自哪里|哪个城市|哪座城市", text):
         return EngagementDetection(
             is_engagement_call=True,
             interaction_type=CHECKIN,
@@ -221,6 +280,24 @@ def _match_chain(text: str) -> Optional[EngagementDetection]:
 
 def _match_open(text: str) -> Optional[EngagementDetection]:
     """开放意见：想先看哪个 / 想看哪个 / 还想听什么 / 你们想先看 / 想听什么。"""
+    if re.search(r"(?:听懂|听明白|明白)了?吗|能听懂吗", text):
+        return EngagementDetection(
+            is_engagement_call=True,
+            interaction_type=OPEN,
+            requested_response="理解反馈",
+            allowed_response_form="open:comprehension",
+            confidence=0.9,
+            trigger_text=text,
+        )
+    if re.search(r"(?:想要|要|需要).{0,3}链接", text):
+        return EngagementDetection(
+            is_engagement_call=True,
+            interaction_type=OPEN,
+            requested_response="链接意向",
+            allowed_response_form="open:link",
+            confidence=0.9,
+            trigger_text=text,
+        )
     if re.search(r"想(?:先)?看(?:哪个|什么|哪)", text) or re.search(
         r"(?:还想|想)听(?:什么|哪个|哪)", text
     ) or re.search(r"你们想(?:先|要)?", text):
@@ -256,6 +333,42 @@ def detect_by_rules(text: str) -> Optional[EngagementDetection]:
         if det is not None:
             return det
     return None
+
+
+def classify_engagements(
+    text: str,
+    segment_id: Optional[int] = None,
+    use_ai: bool = True,
+    max_calls: int = 2,
+) -> List[EngagementDetection]:
+    """识别一个 ASR final 中的多个互动号召。
+
+    腾讯云可能把十秒左右的多句话合成一个 final。按标点拆句后逐句判断，
+    去重并最多保留两个明确号召，避免整段只被最后一个词覆盖，也避免弹幕爆发。
+    """
+    clauses = [c.strip() for c in re.split(r"[，。！？；,.!?;]+", text or "") if c.strip()]
+    if not clauses:
+        return []
+    detected: List[EngagementDetection] = []
+    for clause in clauses:
+        det = classify_engagement(clause, segment_id=segment_id, use_ai=use_ai)
+        if det is None:
+            continue
+        # “把选择打在公屏”是上一个选项号召的补充，不单独再生成一组回应。
+        if (
+            det.interaction_type == OPEN
+            and "公屏" in clause
+            and any(prev.interaction_type == OPTION for prev in detected)
+        ):
+            continue
+        key = (det.interaction_type, det.requested_response)
+        if any((d.interaction_type, d.requested_response) == key for d in detected):
+            continue
+        detected.append(det)
+    if len(detected) <= max_calls:
+        return detected
+    # 保留第一条显式号召和最后一条当前话题号召。
+    return [detected[0], detected[-1]]
 
 
 # ---------------------------------------------------------------------------
@@ -347,16 +460,18 @@ def preset_responses(det: EngagementDetection, count: int = 3) -> List[str]:
         digit = d.group(0) if d else "1"
         pool = [digit, digit + digit, digit + "！", f"扣{digit}"]
     elif itype == OPTION:
-        opts = [o for o in re.split(r"[|/]", requested) if o.strip()]
-        opts = opts[:2] if opts else ["A", "B"]
-        a, b = opts[0], (opts[1] if len(opts) > 1 else "B")
-        pool = [a, f"选{a}", b, f"{a}吧"]
+        opts = _option_values(det)
+        opts = opts[:3] if opts else ["都行", "还没决定"]
+        a, b = opts[0], (opts[1] if len(opts) > 1 else "还没决定")
+        pool = [a, b, f"选{a}", "还没决定"]
     elif itype == KEYWORD:
-        kw = requested
+        kw = _keyword_value(det)
         pool = [kw, kw + "了", kw + kw, "我" + kw]
     elif itype == CHECKIN:
         if "location" in (det.allowed_response_form or ""):
             pool = ["我在上海", "北京", "广州", "杭州"]
+        elif "greeting" in (det.allowed_response_form or ""):
+            pool = ["来了", "刚进来", "主播好", "新来的报到"]
         else:
             pool = ["报到", "来了", "新来的报到", "报到！"]
     elif itype == EMOTION:
@@ -365,7 +480,13 @@ def preset_responses(det: EngagementDetection, count: int = 3) -> List[str]:
     elif itype == CHAIN:
         pool = ["接上", "跟上", "继续接", "来了"]
     elif itype == OPEN:
-        pool = ["先讲产品", "想看实操", "都行", "先讲价格"]
+        form = det.allowed_response_form or ""
+        if "comprehension" in form:
+            pool = ["听懂了", "这里没懂", "能再讲一遍吗", "大概懂了"]
+        elif "link" in form:
+            pool = ["要链接", "链接发一下", "先看看链接", "可以上车"]
+        else:
+            pool = ["先讲产品", "想看实操", "都行", "先讲价格"]
     else:
         pool = ["好的", "收到", "支持", "来了"]
 
@@ -379,6 +500,32 @@ def preset_responses(det: EngagementDetection, count: int = 3) -> List[str]:
         if len(out) >= count:
             break
     return out
+
+
+def _option_values(det: EngagementDetection) -> List[str]:
+    """优先解析机器可读 allowed_response_form，避免把整句要求当作一个选项。"""
+    raw = det.allowed_response_form or ""
+    if raw.startswith("option:"):
+        raw = raw.split(":", 1)[1]
+    else:
+        raw = det.requested_response or ""
+    values = [
+        x.strip(" ，。！？吗呢呀吧")
+        for x in re.split(r"[|/、,，]|还是|或者|或", raw)
+        if x.strip(" ，。！？吗呢呀吧")
+    ]
+    return list(dict.fromkeys(values))
+
+
+def _keyword_value(det: EngagementDetection) -> str:
+    raw = det.allowed_response_form or ""
+    if raw.startswith("keyword:"):
+        value = raw.split(":", 1)[1].strip()
+        if value:
+            return value
+    requested = (det.requested_response or "").strip()
+    m = re.search(r"(?:打|扣|说|回)\s*([\u4e00-\u9fa5]{1,4})$", requested)
+    return m.group(1) if m else requested
 
 
 def generate_responses_ai(
@@ -428,16 +575,23 @@ def _validate_responses(det: EngagementDetection, responses: List[str]) -> List[
             if digit and digit in r:
                 kept.append(r)
     elif itype == OPTION:
-        opts = {o.strip() for o in re.split(r"[|/]", det.requested_response or "") if o.strip()}
-        allowed = opts | {"都喜欢", "还没决定", "都行"}
+        opts = set(_option_values(det))
         for r in responses:
             if any(o in r for o in opts) or any(a in r for a in ("都喜欢", "还没决定", "都行")):
                 kept.append(r)
     elif itype == KEYWORD:
-        kw = (det.requested_response or "").strip()
+        kw = _keyword_value(det)
         for r in responses:
             if kw and kw in r:
                 kept.append(r)
+    elif itype == OPEN and "comprehension" in (det.allowed_response_form or ""):
+        positive = ("懂", "明白")
+        uncertain = ("没懂", "不懂", "再讲", "大概", "哪里")
+        kept = list(responses)
+        if not any(any(k in r for k in positive) for r in kept) or not any(
+            any(k in r for k in uncertain) for r in kept
+        ):
+            raise ValueError("理解确认回应缺少分层反馈，触发降级")
     else:
         kept = list(responses)
     if not kept:

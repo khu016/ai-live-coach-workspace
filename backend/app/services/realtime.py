@@ -5,11 +5,30 @@
 避免与 WebSocket 主协程共享 SQLAlchemy Session。
 """
 
+from array import array
+
 from ..db import SessionLocal
 from ..models import BulletEvent, TranscriptSegment
 
 # PCM 16kHz/16bit 单声道 = 32000 字节/秒，用于由已收音频字节数推算音频时间轴
 PCM_BYTES_PER_SEC = 32000
+
+
+def pcm_has_voice(pcm: bytes, rms_threshold: int = 300) -> bool:
+    """对 16-bit little-endian PCM 做轻量能量 VAD。
+
+    用于判断“有人正在说话”，不参与语音内容识别。阈值以下按静音/底噪处理，
+    避免只因浏览器持续发送零值音频就永远不触发冷场。
+    """
+    if not pcm or len(pcm) < 2:
+        return False
+    usable = len(pcm) - (len(pcm) % 2)
+    samples = array("h")
+    samples.frombytes(pcm[:usable])
+    if not samples:
+        return False
+    mean_square = sum(int(v) * int(v) for v in samples) / len(samples)
+    return mean_square ** 0.5 >= rms_threshold
 
 
 def save_segment(training_id: int, event) -> int:

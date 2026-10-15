@@ -11,6 +11,10 @@
 - **第一版保留（个人主播闭环）**：邀请码与昵称登录、个人数据隔离、创建训练、自由选择先看教程或直接练习、单项难点练习、完整模拟直播、摄像头和麦克风训练、腾讯云实时语音转写、按主播发言动态生成模拟弹幕、必考/刁难/无关/路人/噪声弹幕、录像回看、有具体依据的 AI 反馈、每次指出 1–2 个优先问题、立即重练、个人成长记录、调试标签（默认关闭）。
 - **移至“后续版本规划”**：机构账号和机构登录、机构工作台、主播成员管理、分配训练任务、机构上传/管理培训内容、机构查看旗下主播录像、机构查看成长记录、机构配置考核项、带教老师上播审批、机构权限和角色管理、所有机构端前端页面。
 
+## 当前代码同步（2026-10-15）
+
+已同步本机完整版的品牌启动页、互动弹幕与冷场判定修复、反馈证据过滤、统计与回归测试。仓库统一使用 `frontend/` 和 `backend/`，不要求本机预览目录结构。`frontend/public/video-demo/` 为演示用合成语音素材，不是用户训练数据。`backend/scripts/merge_nivi_data.py` 为离线维护工具，正常运行不需要执行。
+
 ## 阅读入口
 - [PRD v1.8](docs/PRD/AI主播陪练_PRD_v1.8.md)：邀请测试数据埋点与管理员看板（唯一权威版本；v1.7 及更早版本保留作历史）。
 - [项目状态](docs/项目状态.md)：决策台账、待确认问题与阶段历史。
@@ -21,54 +25,69 @@
 ## 本地运行
 
 ### 环境要求
-- Python 3.12（项目用 uv 管理）；uv 已装到 `~/.local/bin/uv`，缺失时 `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- Node.js 20 或更高版本
-- 最新版 Chrome / Edge（需摄像头、麦克风）
+- Python 3.12 或更高版本，以及 [uv](https://docs.astral.sh/uv/getting-started/installation/)。
+- Chrome / Edge；练习需要麦克风，摄像头可选。
+- 修改或重新构建页面需要 Node.js 20 或更高版本；仓库已附带当前前端构建产物。
 
-### 安装依赖
+### 下载与配置
+
+下载并解压本仓库，或运行：
+
 ```bash
-cd AI主播陪练开发
-uv sync
-cd frontend
-npm install
+git clone https://github.com/khu016/ai-live-coach-workspace.git
+cd ai-live-coach-workspace
+cp .env.example .env
 ```
+
+编辑根目录 `.env`，填写自己的 `MODEL_API_KEY`、腾讯云 `TENCENT_ASR_APPID` / `TENCENT_ASR_SECRET_ID` / `TENCENT_ASR_SECRET_KEY`，以及自定义 `INVITE_CODES`。需要管理员看板时另外设置 `ADMIN_ACCESS_CODE`。本地 HTTP 使用 `SESSION_COOKIE_SECURE=false`。
+
+默认语音识别为腾讯云实时识别。模型与语音服务需要使用者自己的账号与有效额度，可能产生服务费用。仓库不包含作者的密钥、账号会话、历史练习或私人录像；首次运行会创建空数据库。登录时输入自己在 `.env` 设置的邀请码。
 
 ### 启动完整产品（一个链接）
 
-首次运行或前端有更新时先构建一次：
+macOS / Linux / Git Bash 在仓库根目录运行：
 
 ```bash
-cd AI主播陪练开发/frontend
-npm run build
+bash scripts/start_nivi_full.sh
 ```
 
-随后启动后端：
+或者手动启动（PowerShell 的环境变量语法见下方）：
 
 ```bash
-cd AI主播陪练开发
+uv sync --frozen
 PYTHONPATH=backend uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
 
-浏览器只需打开 **http://127.0.0.1:8001**。首页、教程、练习、报告和成长记录都由这一地址提供；接口文档为 http://127.0.0.1:8001/docs。教程详情等前端地址可以直接刷新，不会再与后端分离。
+PowerShell：
 
-管理员数据看板位于 **http://127.0.0.1:8001/admin/analytics**。使用 `.env` 中单独配置的 `ADMIN_ACCESS_CODE` 登录，可查看真实用户、训练漏斗、教程、重练、ASR 和动态弹幕运行数据。看板不会记录邀请码、API Key、音视频或转写原文。
+```powershell
+$env:PYTHONPATH = "backend"
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
+```
 
-### 前端开发模式（修改页面时使用）
+浏览器打开 **http://127.0.0.1:8001**，使用同一地址完成登录、教程、训练、反馈和成长记录。接口文档为 `/docs`，管理员看板为 `/admin/analytics`。这是运行者电脑的本地地址，不是公网体验链接。
 
-保持后端终端运行，在第二个终端运行：
+### 前端开发与构建
+
+保持后端运行，在另一个终端执行：
 
 ```bash
-cd AI主播陪练开发/frontend
+cd frontend
+npm ci
 npm run dev
 ```
 
-浏览器打开 **http://localhost:5173**。Vite 会将 `/api` 和实时 WebSocket 请求代理到本机 8001 端口；开发完成后重新执行 `npm run build`，即可在统一的 8001 地址看到最新页面。
+开发入口为 **http://localhost:5174**，API 与 WebSocket 默认代理到 `127.0.0.1:8001`。可通过 `VITE_PROXY_TARGET` 调整后端地址。
+
+前端修改后运行 `npm run build`，会将页面重新构建到 `backend/app/static/`，更新 8001 地址提供的页面。也可在仓库根目录执行 `NIVI_REBUILD_FRONTEND=1 bash scripts/start_nivi_full.sh`。
 
 ### 运行测试
+
 ```bash
-cd AI主播陪练开发
-uv run pytest      # 141 项测试（含邀请登录、跨用户越权防护和原有训练闭环）
+uv run pytest backend/tests
 ```
+
+自动测试使用隔离的临时数据库与模拟服务，不会证明真实麦克风、腾讯云和模型服务端到端可用；这些需要使用配置好的服务另行验收。
 
 ### 内容库
 弹幕与反馈由内容库驱动。内容库文件位于 `backend/app/data/content_library/`
@@ -102,9 +121,9 @@ ADMIN_ACCESS_CODE=<独立的高强度管理员口令>
 技术栈：React + Vite + TypeScript + React Router + Lucide React + 普通 CSS（设计变量见 `src/styles/index.css`）。
 
 ```bash
-cd AI主播陪练开发/frontend
+cd frontend
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # http://localhost:5174
 npm run typecheck  # 类型检查
 npm run build      # 类型检查 + 生产构建（dist/）
 npm run preview    # 预览生产构建
@@ -122,11 +141,11 @@ npm run preview    # 预览生产构建
 ## 配置边界
 - 本项目只用自己目录内的 `.env` 和 API Key；不从外层工具包或其他 Agent 项目隐式读取。
 - `.env`、`.venv`、`data/`、`__pycache__` 均已 gitignore，不提交密钥与用户数据。
-- 沿用外层 Git 仓库，本目录未初始化嵌套 Git 仓库。
+- 本仓库为独立产品仓库，所有运行路径均以仓库根目录为基准。
 
 ## 目录约定
 ```text
-AI主播陪练开发/
+ai-live-coach-workspace/
 ├── README.md / AGENTS.md / .gitignore / .env.example / pyproject.toml / uv.lock / .python-version
 ├── backend/
 │   ├── app/           # FastAPI：api/ core/ models/ schemas/ services/ static/

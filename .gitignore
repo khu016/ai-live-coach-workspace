@@ -19,3 +19,7 @@ frontend/dist/
 !backend/app/data/
 backend/app/data/*
 !backend/app/data/content_library/
+
+# Local runtime and caches
+runtime/
+*.pyc

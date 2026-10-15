@@ -116,6 +116,7 @@ class DynamicBulletEngine:
         self.last_bullet_at: Optional[float] = None
         # 以练习开始（0 秒）为基准，冷场按距最后发言的时长判定
         self.last_segment_end: float = 0.0
+        self.last_voice_activity_at: float = 0.0
         self._cold_start_count = 0
         self._last_was_must_cover = False
         # 同一段连续沉默期间冷场弹幕最多一次；主播重新说话后重置
@@ -140,17 +141,23 @@ class DynamicBulletEngine:
     def _state(self, now_sec, has_new_segment):
         return {
             "last_bullet_at": self.last_bullet_at,
-            "last_segment_end": self.last_segment_end,
+            "last_segment_end": max(self.last_segment_end, self.last_voice_activity_at),
             "pending_must_cover": self._pending_must_cover(),
             "has_new_segment": has_new_segment,
             "last_was_must_cover": self._last_was_must_cover,
         }
+
+    def note_voice_activity(self, now_sec: float) -> None:
+        """记录实时人声活动，不等待 ASR final，防止长句讲话期间误判冷场。"""
+        if now_sec is not None:
+            self.last_voice_activity_at = max(self.last_voice_activity_at, float(now_sec))
 
     def on_final_segment(self, segment: dict, now_sec: float) -> Optional[BulletDraft]:
         """新稳定片段到达时调用。segment 需含 id/start_sec/end_sec/text。"""
         self.recent_segments.append(segment)
         self.recent_segments = self.recent_segments[-RECENT_SEGMENTS_LIMIT:]
         self.last_segment_end = segment.get("end_sec") or now_sec
+        self.note_voice_activity(self.last_segment_end)
         # 主播重新说话：进入新的沉默区间前，重置冷场已触发标记
         self._cold_start_emitted = False
         decision = decide_bullet(self._state(now_sec, True), now_sec)

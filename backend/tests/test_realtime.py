@@ -3,7 +3,7 @@
 from app.db import SessionLocal
 from app.models import BulletEvent, TranscriptSegment
 from app.services.asr_base import ASREvent
-from app.services.realtime import event_to_message, save_segment
+from app.services.realtime import event_to_message, pcm_has_voice, save_segment
 
 
 def test_save_segment(client):
@@ -25,6 +25,13 @@ def test_event_to_message():
     assert m["type"] == "transcript"
     assert m["kind"] == "partial"
     assert m["text"] == "你好"
+
+
+def test_pcm_voice_activity_distinguishes_speech_energy_from_silence():
+    silence = b"\x00\x00" * 1600
+    voiced = (1000).to_bytes(2, "little", signed=True) * 1600
+    assert pcm_has_voice(silence) is False
+    assert pcm_has_voice(voiced) is True
 
 
 def test_asr_websocket_flow(client):

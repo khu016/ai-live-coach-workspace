@@ -29,6 +29,7 @@ from ..services.realtime import (
     PCM_BYTES_PER_SEC,
     event_to_message,
     link_segment_to_pending_bullets,
+    pcm_has_voice,
     save_bullet,
     save_segment,
 )
@@ -124,6 +125,13 @@ async def asr_ws(websocket: WebSocket, training_id: int):
                         if draft is not None:
                             await _push(save_bullet(training_id, draft))
                     else:
+                        if ev.kind == "partial" and ev.text.strip():
+                            activity_at = (
+                                ev.end_sec
+                                if ev.end_sec is not None
+                                else total_audio_bytes / PCM_BYTES_PER_SEC
+                            )
+                            scheduler.note_voice_activity(activity_at)
                         await _push(event_to_message(ev))
             except Exception as e:  # noqa: BLE001
                 print(f"[asr] 识别事件流异常：{e}")
@@ -151,6 +159,9 @@ async def asr_ws(websocket: WebSocket, training_id: int):
                 data = msg.get("bytes")
                 if data is not None:
                     total_audio_bytes += len(data)
+                    now_sec = total_audio_bytes / PCM_BYTES_PER_SEC
+                    if pcm_has_voice(data):
+                        scheduler.note_voice_activity(now_sec)
                     try:
                         await session.send_audio(data)
                     except Exception as e:  # noqa: BLE001

@@ -14,6 +14,7 @@ import pytest
 
 from app.services.engagement import (
     classify_engagement,
+    classify_engagements,
     detect_by_rules,
     generate_response_group,
     preset_responses,
@@ -179,6 +180,63 @@ def test_preset_digit_responses_comply():
     assert 2 <= len(responses) <= 4
     assert all("1" in r for r in responses), responses
     assert len(set(responses)) == len(responses), "回应不应完全重复"
+
+
+def test_chinese_digit_from_asr_is_recognized():
+    det = classify_engagement("觉得主播帅的扣一", use_ai=False)
+    assert det is not None
+    assert det.interaction_type == "digit"
+    assert det.requested_response == "1"
+
+
+def test_chinese_options_are_preserved_without_default_b():
+    det = classify_engagement("想听快歌还是慢歌", use_ai=False)
+    assert det is not None
+    assert det.interaction_type == "option"
+    responses = preset_responses(det, count=3)
+    assert any("快歌" in r for r in responses)
+    assert any("慢歌" in r for r in responses)
+    assert "B" not in responses
+
+
+def test_public_screen_alone_is_not_location_checkin():
+    det = classify_engagement("把选择打在公屏", use_ai=False)
+    assert det is None or det.interaction_type != "checkin"
+
+
+def test_greeting_call_uses_natural_checkin_responses():
+    det = classify_engagement("新来的朋友打个招呼", use_ai=False)
+    assert det is not None
+    assert det.interaction_type == "checkin"
+    responses = preset_responses(det, count=3)
+    assert any(r in ("来了", "刚进来", "主播好", "新来的报到") for r in responses)
+
+
+def test_multiple_calls_in_one_asr_final():
+    text = "觉得主播帅的扣一，想听快歌还是慢歌，把选择打在公屏上。"
+    detections = classify_engagements(text, use_ai=False, max_calls=2)
+    assert [d.interaction_type for d in detections] == ["digit", "option"]
+
+
+def test_comprehension_check_has_layered_responses():
+    det = classify_engagement("这里大家听懂了吗", use_ai=False)
+    assert det is not None and det.interaction_type == "open"
+    responses = preset_responses(det, count=3)
+    assert any("懂" in r for r in responses)
+    assert any(k in r for r in responses for k in ("没懂", "再讲", "大概"))
+
+
+def test_link_call_uses_open_intent():
+    det = classify_engagement("想要链接的告诉我", use_ai=False)
+    assert det is not None and det.interaction_type == "open"
+    responses = preset_responses(det, count=3)
+    assert any("链接" in r for r in responses)
+
+
+def test_common_product_options_survive_missing_asr_punctuation():
+    det = classify_engagement("大家最关心价格成分还是肤质", use_ai=False)
+    assert det is not None and det.interaction_type == "option"
+    assert det.requested_response == "价格|成分|肤质"
 
 
 def test_preset_option_responses_comply():

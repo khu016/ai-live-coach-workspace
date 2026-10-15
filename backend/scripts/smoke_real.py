@@ -81,11 +81,10 @@ def main():
             topic=s.get("topic"),
             product_info=s.get("product_info"),
         )
-        transcript = SimpleNamespace(segments=s["segments"])
         print("=" * 64)
         print(f"样例：{s['name']}")
         try:
-            fb = generate_feedback(tr, transcript)
+            fb = generate_feedback(tr, s["segments"])
             print(
                 json.dumps(
                     {

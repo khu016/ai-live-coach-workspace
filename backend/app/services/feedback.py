@@ -117,7 +117,8 @@ def _filter_non_scorable_evidence(fb: FeedbackOut, bullets, lib) -> FeedbackOut:
         text = (_bget(b, "text") or "").strip()
         scorable = _bget(b, "scorable", True)
         requires = _bget(b, "requires_response", True)
-        if text and (scorable is False or requires is False):
+        display_at = _bget(b, "display_at", _bget(b, "at_sec"))
+        if text and (scorable is False or requires is False or display_at is None):
             non_evidence_texts.add(text)
     adversarial_ids = lib.adversarial_scenario_ids
     kept = []
@@ -128,6 +129,36 @@ def _filter_non_scorable_evidence(fb: FeedbackOut, bullets, lib) -> FeedbackOut:
         if issue.scenario_id and issue.scenario_id in adversarial_ids:
             if not issue.rule_ids or not issue.evidence:
                 continue
+        kept.append(issue)
+    fb.issues = kept
+    fb.top_issue_ids = [i for i in fb.top_issue_ids if i < len(kept)]
+    return fb
+
+
+def _looks_like_question_only(text: str) -> bool:
+    """判断证据是否只是收集偏好的问句，而非包含事实断言的反问。"""
+    evidence = (text or "").strip()
+    if not evidence:
+        return False
+    question_markers = ("？", "?", "吗", "还是", "最关心", "想听", "想看")
+    risky_assertions = (
+        "一定", "绝对", "保证", "百分百", "全网最低", "治好", "都能", "肯定有效"
+    )
+    return any(m in evidence for m in question_markers) and not any(
+        m in evidence for m in risky_assertions
+    )
+
+
+def _filter_question_as_claim(fb: FeedbackOut) -> FeedbackOut:
+    """服务端兜底：纯偏好问句不能被当作未核实商品承诺。"""
+    claim_terms = ("承诺", "编造", "未经核实", "商品资料", "资料不足", "无法确认")
+    kept = []
+    for issue in fb.issues:
+        combined = f"{issue.problem} {issue.suggestion}"
+        if _looks_like_question_only(issue.evidence) and any(
+            term in combined for term in claim_terms
+        ):
+            continue
         kept.append(issue)
     fb.issues = kept
     fb.top_issue_ids = [i for i in fb.top_issue_ids if i < len(kept)]
@@ -157,7 +188,8 @@ def generate_feedback(training, segments, bullets=None, rules=None) -> FeedbackO
         text = call_chat(messages)
         try:
             fb = _sanitize_refs(parse_feedback(text), lib)
-            return _filter_non_scorable_evidence(fb, bullets, lib)
+            fb = _filter_non_scorable_evidence(fb, bullets, lib)
+            return _filter_question_as_claim(fb)
         except Exception as e:  # noqa: BLE001
             last_err = e
     raise RuntimeError(f"反馈解析失败（已重试）: {last_err}")

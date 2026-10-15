@@ -162,6 +162,7 @@ def test_adversarial_spacing():
     assert d.bullet_category == "adversarial"
     assert d.scorable is True
     assert d.requires_response is True
+    assert d.at_sec == 1.0
     gap = sched.next_adversarial_at - 1.0
     assert settings.bullet_adversarial_min_sec <= gap <= settings.bullet_adversarial_max_sec
 
@@ -237,6 +238,14 @@ def test_all_three_ambient_categories_generated():
     assert cats == {"unrelated", "passerby", "room_noise"}
 
 
+def test_scheduler_assigns_display_time_to_ambient():
+    sched = BulletScheduler(make_training(), rng=random.Random(2))
+    sched.next_ambient_at = 0.0
+    draft = sched.on_tick(3.0)
+    assert draft is not None
+    assert draft.at_sec == 3.0
+
+
 # ---- 评分过滤 ----
 
 
@@ -271,10 +280,12 @@ def test_feedback_filters_non_scorable_bullet():
     )
     bullets = [
         SimpleNamespace(
-            text="你们那边今天下雨了吗？", scorable=False, requires_response=False
+            text="你们那边今天下雨了吗？", scorable=False, requires_response=False,
+            display_at=1.0,
         ),
         SimpleNamespace(
-            text="现在下单实际是多少钱？", scorable=True, requires_response=True
+            text="现在下单实际是多少钱？", scorable=True, requires_response=True,
+            display_at=2.0,
         ),
     ]
     out = fb_mod._filter_non_scorable_evidence(fb, bullets, lib)

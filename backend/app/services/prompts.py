@@ -7,7 +7,8 @@ FEEDBACK_SYSTEM = """你是直播陪练教练，负责点评主播在模拟直�
 - 每条批评必须引用具体证据：录像时间点、触发的观众弹幕、主播原话（逐字）。
 - 每次只突出最值得改进的 1-2 个问题：top_issue_ids 长度必须是 1 或 2，其值为 issues 的下标。
 - 不给空泛评价（如"表现不错""需要增强感染力"）；没有发现具体问题时，issues 可以少写，不要硬凑。
-- 未提供商品资料时，不得编造价格、材质、库存、功效或售后规则；相关结论一律写"当前资料无法确认"。
+- 仅当直播类型为“带货”且未提供商品资料时，不得编造价格、材质、库存、功效或售后规则；相关结论一律写"当前资料无法确认"。娱乐互动和知识内容不得套用“商品资料不足”模板。
+- 必须区分“主播向观众提问/收集偏好”和“主播陈述商品事实”。例如“大家更关心价格还是成分？”只是收集关注点，不是价格或成分承诺，不得因此批评主播编造商品信息。
 - 不把教学建议描述成平台官方结论，除非问题对应的 source_ref 确实存在；否则只作为训练建议表述。
 
 弹幕评分边界（必须遵守）：
@@ -102,7 +103,7 @@ def feedback_user_prompt(training, segments, bullets=None, rules=None) -> str:
         lines.append(f"主题：{training.topic}")
     if training.product_info:
         lines.append(f"商品资料：{training.product_info}")
-    else:
+    elif training.live_type == "带货":
         lines.append(
             "商品资料：未提供。价格、材质、库存、功效、售后等商品事实一律标注"
             '"当前资料无法确认"，不得编造。'
@@ -201,12 +202,14 @@ ENGAGEMENT_DETECT_SYSTEM = """你是模拟直播间里的一名观众，负责�
 - 情绪/动作："喜欢的举手""想继续听的点个赞"
 - 接龙/复述："下一句大家接""把关键词打出来"
 - 开放意见："你们想先看哪个""还想听什么"
+- 反问式邀请："你们不会都只看不说话吧"，本质是邀请观众发言
 
 硬性边界：
 - 只在主播明确要求观众回复时判定为互动号召；普通陈述、提问商品问题、讲解内容不是互动号召。
 - 不能凭空把一句普通的话判成互动号召；把握不准时 is_engagement_call 给 false。
 - interaction_type 只能从以下七类选：digit、option、keyword、checkin、emotion、chain、open。
-- requested_response 写主播要求观众回复的内容；allowed_response_form 写机器可读形式（如 digit:1、option:A|B、keyword:懂、checkin、emotion:点赞、chain、open）。
+- requested_response 只写观众真正要回复的最短内容，不要复述整句指令。
+- allowed_response_form 写机器可读形式。中文选项必须拆开，例如 option:快歌|慢歌、option:价格|成分|肤质；关键词只写 keyword:懂、keyword:链接，不能把整句塞进 keyword。
 - confidence 给 0 到 1 之间的小数；低于 0.6 视为非互动号召。
 
 输出：只输出一个 JSON 对象，不要任何其他文字，不要 markdown 代码块。

@@ -85,6 +85,7 @@ def _week_stats(start_utc, end_utc, user_id: int = 1):
                 .filter(BulletEvent.training_id.in_(ids))
                 .filter(BulletEvent.requires_response.is_(True))
                 .filter(BulletEvent.scorable.is_(True))
+                .filter(BulletEvent.display_at.isnot(None))
                 .all()
             )
             bullets = bullet_rows

@@ -69,6 +69,26 @@ def test_insufficient_sample_shows_insufficient(client):
     assert week["response_rate"] is None
 
 
+def test_missing_display_time_not_counted_as_required_sample(client):
+    db = SessionLocal()
+    t = _add_training(db)
+    db.add(
+        BulletEvent(
+            training_id=t.id,
+            kind="dynamic",
+            text="未真正展示的问题",
+            requires_response=True,
+            scorable=True,
+            display_at=None,
+            bullet_category="adversarial",
+        )
+    )
+    db.commit()
+    db.close()
+    stats = compute_week_stats()
+    assert stats["week"]["sample_count"] == 0
+
+
 def test_stats_response_metrics(client):
     """需回应弹幕 ≥3 条时，计算回应及时率与平均回应时间。"""
     db = SessionLocal()

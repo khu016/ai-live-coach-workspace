@@ -206,6 +206,14 @@ def test_engine_on_tick_no_trigger_before_cold_start():
     assert engine.on_tick(now_sec=5.0) is None
 
 
+def test_voice_activity_prevents_false_cold_start_before_final():
+    engine = DynamicBulletEngine(make_training(), triggered_scenario_ids=MUST_IDS)
+    engine.note_voice_activity(16.0)
+    assert engine.on_tick(now_sec=16.0) is None
+    assert engine.on_tick(now_sec=20.0) is None
+    assert engine.on_tick(now_sec=32.0) is not None
+
+
 def test_engine_cold_start_once_per_silence():
     """同一段连续沉默期间冷场弹幕最多一次。"""
     engine = DynamicBulletEngine(make_training())
