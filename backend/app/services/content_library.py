@@ -4,7 +4,7 @@
 用普通内存索引做筛选，不引入向量数据库 / RAG。
 
 - 场景卡：``scenario_cards.jsonl``（84 张）
-- 规则卡：``teaching_rules.jsonl``（20 张）
+- 规则卡：``teaching_rules.jsonl``（20 张教学卡 + 14 张抖音带货参考卡）
 - 环境弹幕：``ambient_bullets.jsonl``（90 张：无关/路人/直播间噪声各 30）
 - 来源登记：``source_registry.json``
 - 版本信息：``manifest.json``
@@ -28,6 +28,7 @@ DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "content_li
 SCENARIOS_FILE = Path(os.getenv("CONTENT_LIBRARY_DIR", str(DEFAULT_DATA_DIR))) / "scenario_cards.jsonl"
 RULES_FILE = Path(os.getenv("CONTENT_LIBRARY_DIR", str(DEFAULT_DATA_DIR))) / "teaching_rules.jsonl"
 AMBIENT_BULLETS_FILE = Path(os.getenv("CONTENT_LIBRARY_DIR", str(DEFAULT_DATA_DIR))) / "ambient_bullets.jsonl"
+SOURCES_FILE = Path(os.getenv("CONTENT_LIBRARY_DIR", str(DEFAULT_DATA_DIR))) / "source_registry.json"
 
 LIVE_TYPES = ("ecommerce", "entertainment", "knowledge")
 
@@ -126,6 +127,7 @@ class ContentLibrary:
         self.rules: List[dict] = []
         self.rules_by_id: dict = {}
         self.rules_by_live_type: dict = {}
+        self.sources_by_id: dict = {}
         self.ambient: List[dict] = []
         self.ambient_by_id: dict = {}
         self.ambient_by_live_type: dict = {}
@@ -136,6 +138,15 @@ class ContentLibrary:
         ambient = _load_jsonl(
             AMBIENT_BULLETS_FILE, "环境弹幕", AMBIENT_REQUIRED_FIELDS
         )
+        try:
+            sources = json.loads(SOURCES_FILE.read_text(encoding="utf-8"))
+            for source in sources:
+                sid = source["source_id"]
+                if sid in self.sources_by_id:
+                    raise ValueError(f"来源ID重复：{sid}")
+                self.sources_by_id[sid] = source
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise ContentLibraryError(f"来源登记格式错误：{exc}") from exc
         for s in scenarios:
             if s["live_type"] not in LIVE_TYPES:
                 raise ContentLibraryError(
@@ -147,6 +158,8 @@ class ContentLibrary:
             self.scenarios_by_id[sid] = s
         for r in rules:
             rid = r["rule_id"]
+            if any(sid not in self.sources_by_id for sid in r["source_refs"]):
+                raise ContentLibraryError(f"规则 {rid} 引用了不存在的来源")
             if rid in self.rules_by_id:
                 raise ContentLibraryError(f"内容库格式错误：规则 ID 重复 {rid!r}")
             if not isinstance(r["live_types"], list):
@@ -270,7 +283,21 @@ class ContentLibrary:
     def rules_for_live_type(self, live_type: str) -> List[dict]:
         if live_type not in LIVE_TYPES:
             raise ContentLibraryError(f"未知直播类型 {live_type!r}")
-        return [self.rules_by_id[rid] for rid in self.rules_by_live_type.get(live_type, [])]
+        rules = [self.rules_by_id[rid] for rid in self.rules_by_live_type.get(live_type, [])]
+        return [r for r in rules if r.get("enabled_for_scoring", True)
+                or r.get("enabled_for_reference", False)]
+
+    def rule_allows_issue(self, rule: dict) -> bool:
+        """平台卡必须通过来源版本门禁；内部教学卡维持原有行为。"""
+        if not rule.get("platform"):
+            return rule.get("enabled_for_scoring", True)
+        return (
+            rule.get("enabled_for_scoring") is True
+            and rule.get("review_status") == "approved_for_scoring"
+            and bool(rule.get("source_refs"))
+            and all(self.sources_by_id[sid].get("current_effectiveness") == "verified"
+                    for sid in rule["source_refs"])
+        )
 
     def ambient_for_live_type(
         self, live_type: str, category: Optional[str] = None

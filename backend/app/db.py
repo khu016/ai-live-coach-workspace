@@ -30,6 +30,12 @@ def run_migrations() -> None:
     """
     insp = inspect(engine)
     with engine.begin() as conn:
+        if insp.has_table("feedbacks"):
+            cols = {c["name"] for c in insp.get_columns("feedbacks")}
+            if "reference_notes" not in cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE feedbacks ADD COLUMN reference_notes JSON NOT NULL DEFAULT '[]'"
+                )
         if insp.has_table("bullet_events"):
             cols = {c["name"] for c in insp.get_columns("bullet_events")}
             if "scenario_id" not in cols:

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -65,11 +65,17 @@ class Issue(BaseModel):
     rule_ids: List[str] = Field(default_factory=list)
     missed_points: List[str] = Field(default_factory=list)
     source_refs: List[str] = Field(default_factory=list)
+    assessment_status: Literal["supported_issue", "needs_verification", "unable_to_judge", "not_applicable", "no_issue_observed"] = "supported_issue"
+    material_evidence: str = ""
+    applicability_reason: str = ""
+    rule_versions: Dict[str, str] = Field(default_factory=dict)
+    source_details: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class FeedbackOut(BaseModel):
     issues: List[Issue]
     top_issue_ids: List[int]
+    reference_notes: List[Issue] = Field(default_factory=list)
 
 
 class TutorialProgressUpdate(BaseModel):

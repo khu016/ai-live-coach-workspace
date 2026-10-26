@@ -93,6 +93,11 @@ export interface ApiIssue {
   rule_ids?: string[]
   missed_points?: string[]
   source_refs?: string[]
+  assessment_status?: 'supported_issue' | 'needs_verification' | 'unable_to_judge' | 'not_applicable' | 'no_issue_observed'
+  material_evidence?: string
+  applicability_reason?: string
+  rule_versions?: Record<string, string>
+  source_details?: { source_id: string; name: string; url: string | null; checked_at?: string }[]
 }
 
 export interface FeedbackResponse {
@@ -100,6 +105,7 @@ export interface FeedbackResponse {
   feedback: {
     issues: ApiIssue[]
     top_issue_ids: number[]
+    reference_notes?: ApiIssue[]
   } | null
 }
 

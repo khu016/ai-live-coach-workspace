@@ -73,5 +73,154 @@
     ],
     "rights_status": "internal_draft",
     "notes": "由项目内容设计归纳，必须经过有直播经验的带教老师审核后才能标记为已验证。"
+  },
+  {
+    "source_id": "SRC-DY-FMCG-20260901",
+    "name": "快消和食品家居虚假宣传规则白皮书",
+    "url": "https://school.jinritemai.com/doudian/web/articlev0/aJkzdMC7vUSV?from_school=1&should_full_screen=1&should_hide_bottom_nav=1",
+    "source_kind": "official_interpretation",
+    "published_at": "2026-09-01",
+    "effective_at": null,
+    "locator": "一、常见虚假宣传类型；二、整改",
+    "scope": "快消、食品家居；需按实际类目确认",
+    "summary": "商品信息及服务介绍应与实际相符；功效宣传、适用人群及证明材料有具体边界。",
+    "evidence_note": "官方域名页面的搜索索引返回了较长正文；直接打开未取得正文。未完成全页及现行有效性核验。",
+    "checked_at": "2026-10-26",
+    "verification_status": "partial_official_index_review",
+    "current_effectiveness": "unconfirmed",
+    "rights_status": "reference_and_summary_only",
+    "use_for": [
+      "评分依据候选",
+      "人工核查"
+    ],
+    "notes": "官方域名页面的搜索索引返回了较长正文；直接打开未取得正文。未完成全页及现行有效性核验。"
+  },
+  {
+    "source_id": "SRC-DY-PRICE-NOTICE-20260611",
+    "name": "关于修订《创作者【违规宣传价格】实施细则》的公示通知",
+    "url": "https://school.jinritemai.com/doudian/web/articlev0/aJkuEyVRFNst?from=search_operation&from_school=1&should_full_screen=1&should_hide_bottom_nav=1",
+    "source_kind": "official_change_notice",
+    "published_at": "2026-06-11",
+    "effective_at": null,
+    "expected_effective_at": "2026-06-19",
+    "locator": "四、常见违规类型；价格宣传不规范",
+    "scope": "抖音电商创作者价格宣传",
+    "summary": "价格应与规格对应，并清楚说明相关费用；虚假或含混的价格宣传受约束。",
+    "evidence_note": "官方搜索索引正文可读。通知写明预计生效并将另行发布正式规则；尚未确认正式生效版，禁止用预计日期冒充生效日期。",
+    "checked_at": "2026-10-26",
+    "verification_status": "partial_official_index_review",
+    "current_effectiveness": "unconfirmed",
+    "rights_status": "reference_and_summary_only",
+    "use_for": [
+      "评分依据候选",
+      "人工核查"
+    ],
+    "notes": "官方搜索索引正文可读。通知写明预计生效并将另行发布正式规则；尚未确认正式生效版，禁止用预计日期冒充生效日期。"
+  },
+  {
+    "source_id": "SRC-DY-PRICE-GUIDE",
+    "name": "抖音电商创作者价格宣传行为规范",
+    "url": "https://school.jinritemai.com/doudian/wap/article/aHh5x1XrA2ni?from_school=1&should_full_screen=1&should_hide_bottom_nav=1",
+    "source_kind": "official_rule_historical_candidate",
+    "published_at": null,
+    "effective_at": null,
+    "locator": "待补正文定位",
+    "scope": "抖音电商创作者",
+    "summary": "价格宣传专项规则候选来源。",
+    "evidence_note": "仅取得标题及处置相关索引片段；正文空白。仅列候选，不支持本包具体规则结论。",
+    "checked_at": "2026-10-26",
+    "verification_status": "partial_official_index_review",
+    "current_effectiveness": "unconfirmed",
+    "rights_status": "reference_and_summary_only",
+    "use_for": [
+      "评分依据候选",
+      "人工核查"
+    ],
+    "notes": "仅取得标题及处置相关索引片段；正文空白。仅列候选，不支持本包具体规则结论。"
+  },
+  {
+    "source_id": "SRC-DY-AFTERSALE-20250717",
+    "name": "创作者售后争议处理细则",
+    "url": "https://school.jinritemai.com/doudian/wap/article/aHKiXkhkT8Rz?from=shop_ptdt&from_school=1&should_full_screen=1&should_hide_bottom_nav=1",
+    "source_kind": "official_rule",
+    "published_at": null,
+    "updated_at": "2025-07-17",
+    "effective_at": null,
+    "locator": "第一章 1.2 适用范围、1.3 定义",
+    "scope": "在抖音分享商品并于小店平台交易所产生的争议",
+    "summary": "区分商品描述不实、服务描述不符和实际未履约。",
+    "evidence_note": "取得官方搜索索引中的概述及定义，未核完全文及更新沿革。模拟练习没有真实订单，不能推断实际履约结果。",
+    "checked_at": "2026-10-26",
+    "verification_status": "partial_official_index_review",
+    "current_effectiveness": "unconfirmed",
+    "rights_status": "reference_and_summary_only",
+    "use_for": [
+      "评分依据候选",
+      "人工核查"
+    ],
+    "notes": "取得官方搜索索引中的概述及定义，未核完全文及更新沿革。模拟练习没有真实订单，不能推断实际履约结果。"
+  },
+  {
+    "source_id": "SRC-DY-ACTIVITY-HISTORICAL",
+    "name": "关于新增《「虚假宣传：活动信息与宣传不符」实施细则》的公示通知",
+    "url": "https://school.jinritemai.com/doudian/web/article/aHtUBbmnPhnk",
+    "source_kind": "official_change_notice_historical",
+    "published_at": null,
+    "effective_at": null,
+    "locator": "行为解读：活动宣传与展示信息一致",
+    "scope": "抽奖、买赠、免单、返现、秒杀等活动",
+    "summary": "活动口播应与营销工具及商品展示内容相符。",
+    "evidence_note": "官方索引返回历史通知正文；日期及是否被替代尚未核实，只支持候选解释。",
+    "checked_at": "2026-10-26",
+    "verification_status": "partial_official_index_review",
+    "current_effectiveness": "unconfirmed",
+    "rights_status": "reference_and_summary_only",
+    "use_for": [
+      "评分依据候选",
+      "人工核查"
+    ],
+    "notes": "官方索引返回历史通知正文；日期及是否被替代尚未核实，只支持候选解释。"
+  },
+  {
+    "source_id": "SRC-DY-MARKETING-20260928",
+    "name": "创作者【严重违规营销】处置细则",
+    "url": "https://school.jinritemai.com/doudian/web/articlev0/aJTMRzPbwGGL?biz_from=rule_center_entry_new",
+    "source_kind": "official_rule",
+    "published_at": "2026-09-28",
+    "effective_at": null,
+    "locator": "3.1 承诺诱骗；4.1 整改建议",
+    "scope": "创作者直播、短视频及其他商品或服务推广",
+    "summary": "限制以不实收益、资源及虚假利益承诺诱导交易，要求优惠可兑现。",
+    "evidence_note": "取得官方索引正文相关章节；未核完全文及后续变更，不据此判断处罚级别。",
+    "checked_at": "2026-10-26",
+    "verification_status": "partial_official_index_review",
+    "current_effectiveness": "unconfirmed",
+    "rights_status": "reference_and_summary_only",
+    "use_for": [
+      "评分依据候选",
+      "人工核查"
+    ],
+    "notes": "取得官方索引正文相关章节；未核完全文及后续变更，不据此判断处罚级别。"
+  },
+  {
+    "source_id": "SRC-DY-FALSE-NOTICE-CANDIDATE",
+    "name": "关于虚假宣传规则变更的公示通知",
+    "url": "https://school.jinritemai.com/doudian/web/article/aJkDHP5P4vNE",
+    "source_kind": "official_change_notice_candidate",
+    "published_at": null,
+    "effective_at": null,
+    "locator": "待补正式规则及条款编号",
+    "scope": "创作者虚假宣传",
+    "summary": "索引显示多项历史实施细则存在整合变更。",
+    "evidence_note": "此前搜索片段可见整合说明，本轮直接读取失败；仅作为版本核查线索，不作为具体规则唯一依据。",
+    "checked_at": "2026-10-26",
+    "verification_status": "partial_official_index_review",
+    "current_effectiveness": "unconfirmed",
+    "rights_status": "reference_and_summary_only",
+    "use_for": [
+      "评分依据候选",
+      "人工核查"
+    ],
+    "notes": "此前搜索片段可见整合说明，本轮直接读取失败；仅作为版本核查线索，不作为具体规则唯一依据。"
   }
 ]

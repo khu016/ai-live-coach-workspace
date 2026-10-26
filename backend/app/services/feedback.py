@@ -49,6 +49,9 @@ def _normalize_issue(it) -> Issue:
         rule_ids=_as_list(it.get("rule_ids") or it.get("命中规则")),
         missed_points=_as_list(it.get("missed_points") or it.get("未覆盖要点")),
         source_refs=_as_list(it.get("source_refs") or it.get("内容来源")),
+        assessment_status=it.get("assessment_status", "supported_issue"),
+        material_evidence=str(it.get("material_evidence") or ""),
+        applicability_reason=str(it.get("applicability_reason") or ""),
     )
 
 
@@ -82,7 +85,17 @@ def parse_feedback(text: str) -> FeedbackOut:
     top = data.get("top_issue_ids", [])
     if not top:
         top = list(range(min(2, len(issues))))
-    return FeedbackOut(issues=issues, top_issue_ids=[int(x) for x in top])
+    notes = [_normalize_issue(it) for it in data.get("reference_notes", [])]
+    return FeedbackOut(issues=issues, top_issue_ids=[int(x) for x in top], reference_notes=notes)
+
+
+def _retain_issues(fb, kept):
+    """删除问题后按原下标重映射，不能把重点指向另一条问题。"""
+    positions = {id(issue): i for i, issue in enumerate(kept)}
+    fb.top_issue_ids = [positions[id(fb.issues[i])] for i in fb.top_issue_ids
+                        if 0 <= i < len(fb.issues) and id(fb.issues[i]) in positions][:2]
+    fb.issues = kept
+    return fb
 
 
 def _sanitize_refs(fb: FeedbackOut, lib) -> FeedbackOut:
@@ -92,10 +105,18 @@ def _sanitize_refs(fb: FeedbackOut, lib) -> FeedbackOut:
     """
     known_scenarios = lib.scenarios_by_id
     known_rules = lib.rules_by_id
-    for issue in fb.issues:
+    for issue in [*fb.issues, *fb.reference_notes]:
         if issue.scenario_id and issue.scenario_id not in known_scenarios:
             issue.scenario_id = None
         issue.rule_ids = [r for r in issue.rule_ids if r in known_rules]
+        allowed_sources = set()
+        for rid in issue.rule_ids:
+            allowed_sources.update(known_rules[rid].get("source_refs", []))
+        if issue.scenario_id:
+            allowed_sources.update(known_scenarios[issue.scenario_id].get("source_refs", []))
+        issue.source_refs = [sid for sid in issue.source_refs if sid in allowed_sources
+                             and sid in lib.sources_by_id]
+        issue.source_details = [lib.sources_by_id[sid] for sid in issue.source_refs]
     return fb
 
 
@@ -130,9 +151,7 @@ def _filter_non_scorable_evidence(fb: FeedbackOut, bullets, lib) -> FeedbackOut:
             if not issue.rule_ids or not issue.evidence:
                 continue
         kept.append(issue)
-    fb.issues = kept
-    fb.top_issue_ids = [i for i in fb.top_issue_ids if i < len(kept)]
-    return fb
+    return _retain_issues(fb, kept)
 
 
 def _looks_like_question_only(text: str) -> bool:
@@ -160,8 +179,83 @@ def _filter_question_as_claim(fb: FeedbackOut) -> FeedbackOut:
         ):
             continue
         kept.append(issue)
-    fb.issues = kept
-    fb.top_issue_ids = [i for i in fb.top_issue_ids if i < len(kept)]
+    return _retain_issues(fb, kept)
+
+
+def _apply_reference_policy(fb, lib, rules, segments, training):
+    """平台候选规则只产生独立参考项；来源及证据边界服务端执行。"""
+    allowed = {r["rule_id"]: r for r in rules
+               if r.get("enabled_for_scoring", True) or r.get("enabled_for_reference", False)}
+    notes = []
+    kept = []
+    seen = {}
+    original_notes = {id(i) for i in fb.reference_notes}
+    for issue in [*fb.issues, *fb.reference_notes]:
+        original_ids = list(issue.rule_ids)
+        issue.rule_ids = [rid for rid in original_ids if rid in allowed]
+        if original_ids and not issue.rule_ids:
+            continue
+        platform_rules = [allowed[rid] for rid in issue.rule_ids if allowed[rid].get("platform")]
+        legacy_fact_rules = {"R-COM-001", "R-COM-002", "R-TRU-001"}
+        if (training.live_type == "带货" and legacy_fact_rules.intersection(issue.rule_ids)
+                and issue.assessment_status == "supported_issue"):
+            material = getattr(training, "product_info", None) or ""
+            if not issue.material_evidence.strip() or issue.material_evidence not in material:
+                issue.assessment_status = "needs_verification"
+        if platform_rules:
+            # 原话必须出现在所报时间范围相交的稳定转写中。
+            quotes = [s.get("text", "") for s in segments
+                      if s.get("start", 0) <= issue.end_sec and s.get("end", 0) >= issue.start_sec]
+            if (not issue.evidence.strip() or issue.start_sec < 0
+                    or issue.end_sec < issue.start_sec
+                    or issue.evidence not in "".join(quotes)):
+                continue
+            if (issue.assessment_status == "supported_issue"
+                    and any(not lib.rule_allows_issue(r) for r in platform_rules)):
+                issue.assessment_status = "needs_verification"
+            elif issue.assessment_status == "supported_issue":
+                material = getattr(training, "product_info", None) or ""
+                if (not issue.applicability_reason.strip() or not issue.material_evidence.strip()
+                        or issue.material_evidence not in material):
+                    issue.assessment_status = "needs_verification"
+            issue.rule_versions = {r["rule_id"]: r["version"] for r in platform_rules}
+            issue.source_refs = list(dict.fromkeys(
+                sid for r in platform_rules for sid in r["source_refs"]))
+            issue.source_details = [lib.sources_by_id[sid] for sid in issue.source_refs]
+        is_note = id(issue) in original_notes or issue.assessment_status != "supported_issue"
+        if is_note:
+            if not issue.rule_ids:
+                continue
+            if issue.assessment_status == "supported_issue":
+                issue.assessment_status = "needs_verification"
+            # 待核实项目使用固定说明，避免保留模型输出的既定违规断言。
+            if issue.assessment_status == "needs_verification":
+                issue.problem = "宣传与承诺待核实：“" + issue.evidence + "”"
+                issue.suggestion = "请核对适用规则现行版本及商品、活动或售后资料；当前参考项不作为已确认问题或扣分依据。"
+                if platform_rules:
+                    required = list(dict.fromkeys(item for r in platform_rules
+                                                  for item in r.get("evidence_required", [])))
+                    issue.suggestion = "请核对：" + "；".join(required) + "。相关规则现行版本仍需确认，本项不计入已确认问题。"
+            target = notes
+        else:
+            target = kept
+        if platform_rules or is_note:
+            group = tuple(sorted({r.get("dedup_group", r["rule_id"]) for r in platform_rules}))
+            key = (is_note, issue.start_sec, issue.end_sec, issue.evidence, () if is_note else group)
+            if key in seen:
+                previous = seen[key]
+                previous.rule_ids = list(dict.fromkeys(previous.rule_ids + issue.rule_ids))
+                previous.source_refs = list(dict.fromkeys(previous.source_refs + issue.source_refs))
+                previous.rule_versions.update(issue.rule_versions)
+                previous.source_details = [lib.sources_by_id[sid] for sid in previous.source_refs
+                                           if sid in lib.sources_by_id]
+                if platform_rules:
+                    previous.suggestion = issue.suggestion
+                continue
+            seen[key] = issue
+        target.append(issue)
+    _retain_issues(fb, kept)
+    fb.reference_notes = notes[:5]
     return fb
 
 
@@ -187,9 +281,11 @@ def generate_feedback(training, segments, bullets=None, rules=None) -> FeedbackO
     for _ in range(3):
         text = call_chat(messages)
         try:
-            fb = _sanitize_refs(parse_feedback(text), lib)
+            fb = _apply_reference_policy(parse_feedback(text), lib, rules, segments or [], training)
+            fb = _sanitize_refs(fb, lib)
             fb = _filter_non_scorable_evidence(fb, bullets, lib)
-            return _filter_question_as_claim(fb)
+            fb = _filter_question_as_claim(fb)
+            return fb
         except Exception as e:  # noqa: BLE001
             last_err = e
     raise RuntimeError(f"反馈解析失败（已重试）: {last_err}")

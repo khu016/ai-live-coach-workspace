@@ -56,6 +56,7 @@ def run_pipeline(training_id: int) -> None:
                     training_id=training_id,
                     issues=[i.model_dump() for i in fb.issues],
                     top_issue_ids=fb.top_issue_ids,
+                    reference_notes=[i.model_dump() for i in fb.reference_notes],
                 )
             )
             t.status = "feedback_ready"

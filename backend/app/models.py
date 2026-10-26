@@ -163,6 +163,7 @@ class Feedback(Base):
     training_id = Column(Integer, nullable=False, index=True)
     issues = Column(JSON, nullable=False, default=list)
     top_issue_ids = Column(JSON, nullable=False, default=list)
+    reference_notes = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, default=now)
 
 

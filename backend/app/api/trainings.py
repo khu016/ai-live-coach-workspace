@@ -333,6 +333,7 @@ def get_feedback(
             resp["feedback"] = {
                 "issues": fb.issues,
                 "top_issue_ids": fb.top_issue_ids,
+                "reference_notes": fb.reference_notes or [],
             }
     return resp
 
@@ -430,6 +431,7 @@ def compare(
             "training": _training_dict(tr),
             "issues": fb.issues if fb else [],
             "top_issue_ids": fb.top_issue_ids if fb else [],
+            "reference_notes": (fb.reference_notes or []) if fb else [],
         }
 
     return {"current": _side(t), "previous": _side(prev)}

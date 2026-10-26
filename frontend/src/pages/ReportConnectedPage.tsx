@@ -28,6 +28,7 @@ interface LoadedReport {
   training: ApiTraining
   issues: ApiIssue[]
   topIssueIds: number[]
+  referenceNotes: ApiIssue[]
 }
 
 function formatDate(value: string | null): string {
@@ -97,6 +98,7 @@ export default function ReportConnectedPage() {
             training,
             issues: feedback.feedback.issues,
             topIssueIds: feedback.feedback.top_issue_ids,
+            referenceNotes: feedback.feedback.reference_notes ?? [],
           })
           void getTutorialRecommendations(numericId)
             .then((tutorials) => { if (!cancelled) setRecommendedTutorials(tutorials) })
@@ -202,7 +204,7 @@ export default function ReportConnectedPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page report-page">
       <PageHeader
         title={report.training.goal}
         subtitle={`${formatDate(report.training.finished_at ?? report.training.created_at)} · ${report.training.live_type} · ${report.training.practice_mode === 'focus' ? '难点练习' : '完整模拟'}`}
@@ -265,7 +267,9 @@ export default function ReportConnectedPage() {
             </FrostedInsightCard>
           ) : (
             <FrostedInsightCard title="本次训练已完成">
-              当前转写证据不足以形成明确问题，系统没有为了填满报告而编造结论。
+              {report.referenceNotes.length > 0
+                ? '本次未形成已确认问题，宣传与承诺中需要补充依据的内容列在下方。'
+                : '当前证据未形成明确问题，可结合录像继续复盘。'}
             </FrostedInsightCard>
           )}
 
@@ -293,6 +297,30 @@ export default function ReportConnectedPage() {
               </div>
             )}
           </div>
+
+          {report.referenceNotes.length > 0 ? (
+            <section className="commerce-reference mt-4" aria-labelledby="commerce-reference-heading">
+              <h3 id="commerce-reference-heading" className="text-lg semibold mb-3">宣传与承诺核查</h3>
+              <p className="text-sm mb-3">以下为参考提醒，未计入本次问题数量或前后对比。</p>
+              {report.referenceNotes.map((note, index) => (
+                <details key={`${note.start_sec}-${index}`} className="mb-3">
+                  <summary className="text-sm medium">
+                    {formatSec(note.start_sec)} · {note.assessment_status === 'no_issue_observed' ? '本项未发现问题' : note.assessment_status === 'not_applicable' ? '本项不适用' : note.assessment_status === 'unable_to_judge' ? '暂无法判断' : '需要核实'}
+                    {' · '}{note.evidence}
+                  </summary>
+                  <p className="text-sm mt-2 mb-2">{note.suggestion}</p>
+                  {note.source_details?.map((source) => (
+                    source.url?.startsWith('https://school.jinritemai.com/') ? (
+                      <p key={source.source_id} className="text-sm mb-2">
+                        <a href={source.url} target="_blank" rel="noopener noreferrer">{source.name}（官方来源）</a>
+                        {source.checked_at ? ` · 资料核查于 ${source.checked_at}` : ''}
+                      </p>
+                    ) : null
+                  ))}
+                </details>
+              ))}
+            </section>
+          ) : null}
 
           {recommendedTutorials.length > 0 ? (
             <div className="mt-4">
